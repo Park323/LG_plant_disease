@@ -172,7 +172,7 @@ if __name__=='__main__':
         tqdm_dataset = tqdm(enumerate(val_dataloader))
         training = False
         for batch, batch_item in tqdm_dataset:
-            batch_loss, batch_acc = train_step(batch_item, training)
+            batch_loss, batch_acc = train_step(model, criterion, optimizer, batch_item, training)
             total_val_loss += batch_loss
             total_val_acc += batch_acc
             
