@@ -11,7 +11,7 @@ if __name__=='__main__':
     train_path = config['DATA']['TRAIN_PATH']
     valid_path = config['DATA']['VALID_PATH']
     
-    JOIN = lambda x: os.path.join(data_dir, x)
+    JOIN = lambda x: data_dir + '/' + x
     files = os.listdir(data_dir)
     files = [file for file in list(map(JOIN, files)) if os.path.isdir(file)]
     np.random.shuffle(files)
@@ -20,6 +20,6 @@ if __name__=='__main__':
     valid_files = files[-int(len(files) * val_rate):]
     
     with open(JOIN(train_path), 'w') as f:
-        f.write('\n'.join(train_files))
+        f.write(','.join(train_files))
     with open(JOIN(valid_path), 'w') as f:
-        f.write('\n'.join(valid_files))
+        f.write(','.join(valid_files))
