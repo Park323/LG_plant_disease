@@ -1,6 +1,6 @@
 import torch.nn as nn
-from lstm import RNN_Decoder
-from resnet50 import CNN_Encoder
+from model.lstm import RNN_Decoder
+from model.resnet50 import CNN_Encoder
 
 class CNN2RNN(nn.Module):
     def __init__(self, max_len, embedding_dim, num_features, class_n, rate):
