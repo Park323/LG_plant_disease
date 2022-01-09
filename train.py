@@ -131,7 +131,7 @@ if __name__=='__main__':
     train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=TRAIN.BATCH_SIZE, num_workers=16, shuffle=True)
     val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=TRAIN.BATCH_SIZE, num_workers=16, shuffle=False)
     
-    if args.epoch_from:
+    if args.from_epoch:
         if os.path.exists(TRAIN.SAVE_PATH + '/' + f'model_{args.epoch_from}.pt'):
             model = torch.load(TRAIN.SAVE_PATH + '/' + f'model_{args.epoch_from}.pt')
         else:
@@ -140,7 +140,7 @@ if __name__=='__main__':
         model = CNN2RNN(max_len=TRAIN.MAX_LEN, embedding_dim=TRAIN.EMBEDDING_DIM, \
                         num_features=TRAIN.NUM_FEATURES, class_n=TRAIN.CLASS_N, \
                         rate=TRAIN.DROPOUT_RATE)
-    model = model.to(TRAIN.DEVICE)
+    model = model.to(DEVICE)
     optimizer = torch.optim.Adam(model.parameters(), lr=TRAIN.LEARNING_RATE)
     criterion = nn.CrossEntropyLoss()
     
