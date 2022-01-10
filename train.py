@@ -64,7 +64,11 @@ if __name__=='__main__':
     
     ##########################      DataLoader 정의     #########################
     preprocessor = preprocess.Base_Processer(config)
-    preprocessor.init_csv()
+    if os.path.exists(f'{DATA.DATA_ROOT}/prepro_dict.pkl'):
+        preprocessor.load_dictionary(f'{DATA.DATA_ROOT}/prepro_dict.pkl')
+    else:
+        preprocessor.init_csv()
+    
     
     with open(TRAIN_PATH, 'r') as f:
         train_dataset = CustomDataset(f.read().split('\n'), pre=preprocessor)
@@ -79,10 +83,8 @@ if __name__=='__main__':
     
     ################  Model / Loss / Optimizer / Scheduler 정의  ################
     if args.from_epoch:
-        if os.path.exists(TRAIN.SAVE_PATH + '/' + f'model_{args.epoch_from}.pt'):
-            model = torch.load(TRAIN.SAVE_PATH + '/' + f'model_{args.epoch_from}.pt')
-        else:
-            assert f'Model is not Exists: {TRAIN.SAVE_PATH}/model_{args.epoch_from}.pt'
+        assert os.path.exists(TRAIN.SAVE_PATH + '/' + f'model_{args.from_epoch}.pt'), f'Model is not Exists: {TRAIN.SAVE_PATH}/model_{args.from_epoch}.pt'
+        model = torch.load(TRAIN.SAVE_PATH + '/' + f'model_{args.from_epoch}.pt')
     else:
         # Argument에 따라 model 변경
         if args.model_name=='base':
@@ -96,8 +98,12 @@ if __name__=='__main__':
     
     
     #########################         TRAIN         #############################
-    loss_plot, val_loss_plot = [], []
-    metric_plot, val_metric_plot = [], []
+    if args.from_epoch and os.path.exists(f'{TRAIN.SAVE_PATH}/train_history.pt'):
+        hists = torch.load(f'{TRAIN.SAVE_PATH}/train_history.pt')
+        loss_plot, val_loss_plot, metric_plot, val_metric_plot = hists.values()
+    else:
+        loss_plot, val_loss_plot = [], []
+        metric_plot, val_metric_plot = [], []
 
     epoch_from = args.from_epoch
 
@@ -118,8 +124,6 @@ if __name__=='__main__':
                 'Mean Loss' : '{:06f}'.format(total_loss/(batch+1)),
                 'Mean F-1' : '{:06f}'.format(total_acc/(batch+1))
             })
-        loss_plot.append(total_loss/(batch+1))
-        metric_plot.append(total_acc/(batch+1))
         
         tqdm_dataset = tqdm(enumerate(val_dataloader))
         training = False
@@ -134,8 +138,17 @@ if __name__=='__main__':
                 'Mean Val Loss' : '{:06f}'.format(total_val_loss/(batch+1)),
                 'Mean Val F-1' : '{:06f}'.format(total_val_acc/(batch+1))
             })
-        val_loss_plot.append(total_val_loss/(batch+1))
-        val_metric_plot.append(total_val_acc/(batch+1))
+        
+        if len(loss_plot)==epoch:
+            loss_plot.append(total_loss.item()/(batch+1))
+            metric_plot.append(total_acc/(batch+1))
+            val_loss_plot.append(total_val_loss.item()/(batch+1))
+            val_metric_plot.append(total_val_acc/(batch+1))
+        else:
+            loss_plot[epoch]=total_loss.item()/(batch+1)
+            metric_plot[epoch]=total_acc/(batch+1)
+            val_loss_plot[epoch]=total_val_loss.item()/(batch+1)
+            val_metric_plot[epoch]=total_val_acc/(batch+1)
                 
         # check/make directory for model file
         dp = []
@@ -146,5 +159,8 @@ if __name__=='__main__':
             dp.append(directory)
         
         # if np.max(val_metric_plot) == val_metric_plot[-1]:
-        torch.save(model, TRAIN.SAVE_PATH + '/' + f'model_{epoch+1}.pt')
+        torch.save(model, f'{TRAIN.SAVE_PATH}/model_{epoch+1}.pt')
+        torch.save({'train_loss':loss_plot, 'val_loss':val_loss_plot,
+                    'train_f1':metric_plot, 'val_f1':val_metric_plot},
+                    f'{TRAIN.SAVE_PATH}/train_history.pt')
         
