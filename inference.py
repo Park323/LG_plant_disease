@@ -12,8 +12,12 @@ from torch import nn
 from torchvision import models
 from sklearn.metrics import f1_score
 
+from dataset import preprocess
 from dataset.dataset import CustomDataset
 from model.base_model import CNN2RNN
+
+import warnings
+warnings.simplefilter('ignore')
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -39,15 +43,16 @@ if __name__=='__main__':
     TRAIN = config.TRAIN
     DATA = config.DATA
     
-    with open(DATA.DATA_ROOT+'/'+'feats_minmax_and_label_dict.pkl', 'rb') as f:
-        param_set = pickle.load(f)
-    csv_feature_dict, label_encoder = param_set.values()
+    preprocessor = preprocess.Base_Processer(config)
+    preprocessor.load_dictionary(f'{config.DATA.DATA_ROOT}/prepro_dict.pkl')
     
-    with open(DATA.DATA_ROOT+'/'+DATA.TEST_PATH, 'r') as f:
-        test_dataset = CustomDataset(f.read().split(','), label_encoder=label_encoder, csv_feature_dict=csv_feature_dict)
+    with open(f"{DATA.DATA_ROOT}/{DATA.TEST_PATH}", 'r') as f:
+        test_dataset = CustomDataset(f.read().split('\n'), pre=preprocessor)
     
-    test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=TRAIN.BATCH_SIZE, num_workers=16, shuffle=False)
-        
+    test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=TRAIN.BATCH_SIZE, num_workers=TRAIN.NUM_WORKER, shuffle=False)
+    
     model = torch.load(TRAIN.SAVE_PATH)
     
     preds, answer = predict(TRAIN, model, test_dataloader)
+    
+    print(f"{preds} : {answer}")
