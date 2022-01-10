@@ -1,6 +1,7 @@
 ####   CONFIGURATION   ####
 DATA :
-  DATA_PATH  : data/sample
+  DATA_ROOT  : data
+  IMAGE_PATH  : sample
   TRAIN_PATH : Train.txt
   VALID_PATH : Valid.txt
   TEST_PATH  : Test.txt

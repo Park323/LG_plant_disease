@@ -39,11 +39,11 @@ if __name__=='__main__':
     TRAIN = config.TRAIN
     DATA = config.DATA
     
-    with open(DATA.DATA_PATH+'/'+'feats_minmax_and_label_dict.pkl', 'rb') as f:
+    with open(DATA.DATA_ROOT+'/'+'feats_minmax_and_label_dict.pkl', 'rb') as f:
         param_set = pickle.load(f)
     csv_feature_dict, label_encoder = param_set.values()
     
-    with open(DATA.DATA_PATH+'/'+DATA.TEST_PATH, 'r') as f:
+    with open(DATA.DATA_ROOT+'/'+DATA.TEST_PATH, 'r') as f:
         test_dataset = CustomDataset(f.read().split(','), label_encoder=label_encoder, csv_feature_dict=csv_feature_dict)
     
     test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=TRAIN.BATCH_SIZE, num_workers=16, shuffle=False)

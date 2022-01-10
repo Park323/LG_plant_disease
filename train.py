@@ -94,14 +94,15 @@ if __name__=='__main__':
     TRAIN = config.TRAIN
     DATA  = config.DATA
     
-    TRAIN_PATH = DATA.DATA_PATH + '/' + config.DATA.TRAIN_PATH
-    VALID_PATH = DATA.DATA_PATH + '/' + config.DATA.VALID_PATH
+    IMAGE_PATH = DATA.DATA_ROOT + '/' + DATA.IMAGE_PATH
+    TRAIN_PATH = DATA.DATA_ROOT + '/' + DATA.TRAIN_PATH
+    VALID_PATH = DATA.DATA_ROOT + '/' + DATA.VALID_PATH
     
     # 분석에 사용할 feature 선택
     csv_features = ['내부 온도 1 평균', '내부 온도 1 최고', '내부 온도 1 최저', '내부 습도 1 평균', '내부 습도 1 최고', 
                     '내부 습도 1 최저', '내부 이슬점 평균', '내부 이슬점 최고', '내부 이슬점 최저']
 
-    csv_files = sorted(glob(DATA.DATA_PATH + '/*/*.csv'))
+    csv_files = sorted(glob(IMAGE_PATH + '/*/*.csv'))
 
     temp_csv = pd.read_csv(csv_files[0])[csv_features]
     max_arr, min_arr = temp_csv.max().to_numpy(), temp_csv.min().to_numpy()
@@ -119,13 +120,13 @@ if __name__=='__main__':
     label_encoder = {key:idx for idx, key in enumerate(label_description)}
     label_decoder = {val:key for key, val in label_encoder.items()}
     
-    with open(DATA.DATA_PATH+'/'+'feats_minmax_and_label_dict.pkl', 'wb') as f:
+    with open(DATA.DATA_ROOT+'/'+'feats_minmax_and_label_dict.pkl', 'wb') as f:
         pickle.dump({'csv_feature_dict':csv_feature_dict, 
                      'label_encoder':label_encoder}, f)
     
-    with open(DATA.DATA_PATH+'/'+config.DATA.TRAIN_PATH, 'r') as f:
+    with open(TRAIN_PATH, 'r') as f:
         train_dataset = CustomDataset(f.read().split(','), label_encoder=label_encoder, csv_feature_dict=csv_feature_dict)
-    with open(DATA.DATA_PATH+'/'+config.DATA.VALID_PATH, 'r') as f:
+    with open(VALID_PATH, 'r') as f:
         val_dataset = CustomDataset(f.read().split(','), label_encoder=label_encoder, csv_feature_dict=csv_feature_dict)
 
     train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=TRAIN.BATCH_SIZE, num_workers=16, shuffle=True)
@@ -187,7 +188,7 @@ if __name__=='__main__':
                 
         # check/make directory for model file
         dp = []
-        for directory in config.SAVE_PATH.split('/'):
+        for directory in TRAIN.SAVE_PATH.split('/'):
             new_dir = '/'.join([*dp, directory])
             if not os.path.exists(new_dir):
                 os.mkdir(new_dir)
