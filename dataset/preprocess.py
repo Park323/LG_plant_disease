@@ -42,11 +42,38 @@ class Base_Processer():
             '6_b5_2': '축과병_중기',
             '6_b5_3': '축과병_말기',
             }
-            
-        self.csv_feature_dict = None
+
+        self.csv_feature_dict=None    
         self.label_encoder = {key:idx for idx, key in enumerate(self.label_description)}
         self.label_decoder = {val:key for key, val in self.label_encoder.items()}
-    
+        
+    def init_csv(self):
+        config = self.config
+
+        # 분석에 사용할 feature 선택
+        csv_features = ['내부 온도 1 평균', '내부 온도 1 최고', '내부 온도 1 최저', '내부 습도 1 평균', '내부 습도 1 최고', 
+                        '내부 습도 1 최저', '내부 이슬점 평균', '내부 이슬점 최고', '내부 이슬점 최저']
+
+        image_folder = f'{config.DATA.DATA_ROOT}/{config.DATA.IMAGE_PATH}'
+        csv_files = sorted(glob(image_folder + '/*/*.csv'))
+
+        temp_csv = pd.read_csv(csv_files[0])[csv_features]
+        max_arr, min_arr = temp_csv.max().to_numpy(), temp_csv.min().to_numpy()
+
+        # feature 별 최대값, 최솟값 계산
+        for csv in tqdm(csv_files[1:]):
+            temp_csv = pd.read_csv(csv)[csv_features]
+            temp_max, temp_min = temp_csv.max().to_numpy(), temp_csv.min().to_numpy()
+            max_arr = np.max([max_arr,temp_max], axis=0)
+            min_arr = np.min([min_arr,temp_min], axis=0)
+
+        # feature 별 최대값, 최솟값 dictionary 생성
+        self.csv_feature_dict = {csv_features[i]:[min_arr[i], max_arr[i]] for i in range(len(csv_features))}
+        with open(f'{config.DATA.DATA_ROOT}/prepro_dict.pkl', 'wb') as f:
+            pickle.dump({'csv_feature_dict':self.csv_feature_dict, 
+                        'label_encoder':self.label_encoder,
+                        'label_decoder':self.label_decoder}, f)
+
     def img_preprocessing(self, img):
         img = cv2.resize(img, dsize=(256, 256), interpolation=cv2.INTER_AREA)
         img = img.astype(np.float32)/255
@@ -57,36 +84,8 @@ class Base_Processer():
         return json_dic
         
     def csv_preprocessing(self, df):
+        config=self.config
         df = df.copy()
-        config = self.config
-        
-        if self.csv_feature_dict:
-            pass
-        else:
-            # 분석에 사용할 feature 선택
-            csv_features = ['내부 온도 1 평균', '내부 온도 1 최고', '내부 온도 1 최저', '내부 습도 1 평균', '내부 습도 1 최고', 
-                            '내부 습도 1 최저', '내부 이슬점 평균', '내부 이슬점 최고', '내부 이슬점 최저']
-
-            image_folder = f'{config.DATA.DATA_ROOT}/{config.DATA.IMAGE_PATH}'
-            csv_files = sorted(glob(image_folder + '/*/*.csv'))
-
-            temp_csv = pd.read_csv(csv_files[0])[csv_features]
-            max_arr, min_arr = temp_csv.max().to_numpy(), temp_csv.min().to_numpy()
-
-            # feature 별 최대값, 최솟값 계산
-            for csv in tqdm(csv_files[1:]):
-                temp_csv = pd.read_csv(csv)[csv_features]
-                temp_max, temp_min = temp_csv.max().to_numpy(), temp_csv.min().to_numpy()
-                max_arr = np.max([max_arr,temp_max], axis=0)
-                min_arr = np.min([min_arr,temp_min], axis=0)
-
-            # feature 별 최대값, 최솟값 dictionary 생성
-            self.csv_feature_dict = {csv_features[i]:[min_arr[i], max_arr[i]] for i in range(len(csv_features))}
-            
-            with open(f'{config.DATA.DATA_ROOT}/prepro_dict.pkl', 'wb') as f:
-                pickle.dump({'csv_feature_dict':self.csv_feature_dict, 
-                            'label_encoder':self.label_encoder,
-                            'label_decoder':self.label_decoder}, f)
                 
         # MinMax scaling
         for col in self.csv_feature_dict.keys():

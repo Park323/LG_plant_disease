@@ -64,6 +64,7 @@ if __name__=='__main__':
     
     ##########################      DataLoader 정의     #########################
     preprocessor = preprocess.Base_Processer(config)
+    preprocessor.init_csv()
     
     with open(TRAIN_PATH, 'r') as f:
         train_dataset = CustomDataset(f.read().split('\n'), pre=preprocessor)
