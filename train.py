@@ -52,9 +52,10 @@ if __name__=='__main__':
                         type=str, default='base')
     
     args = parser.parse_args()
-    config = OmegaConf.load(f'config/{args.model_name}_config.yaml')
+    config = OmegaConf.load(f'config/config.yaml')
+    mconfig = OmegaConf.load(f'config/{args.model_name}_config.yaml')
     
-    TRAIN = config.TRAIN
+    TRAIN = mconfig.TRAIN
     DATA  = config.DATA
     
     IMAGE_PATH = DATA.DATA_ROOT + '/' + DATA.IMAGE_PATH
@@ -70,9 +71,9 @@ if __name__=='__main__':
         val_dataset = CustomDataset(f.read().split('\n'), pre=preprocessor)
 
     train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=TRAIN.BATCH_SIZE, 
-                                                   num_workers=TRAIN.NUM_WORKER, shuffle=True)
+                                                   num_workers=config.TRAIN.NUM_WORKER, shuffle=True)
     val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=TRAIN.BATCH_SIZE, 
-                                                 num_workers=TRAIN.NUM_WORKER, shuffle=False)
+                                                 num_workers=config.TRAIN.NUM_WORKER, shuffle=False)
     #####################################################################
     
     ################  Model / Loss / Optimizer / Scheduler 정의  ################
@@ -84,7 +85,7 @@ if __name__=='__main__':
     else:
         # Argument에 따라 model 변경
         if args.model_name=='base':
-            model = CNN2RNN(max_len=TRAIN.MAX_LEN, embedding_dim=TRAIN.EMBEDDING_DIM, \
+            model = CNN2RNN(max_len=config.TRAIN.MAX_LEN, embedding_dim=TRAIN.EMBEDDING_DIM, \
                             num_features=TRAIN.NUM_FEATURES, class_n=TRAIN.CLASS_N, \
                             rate=TRAIN.DROPOUT_RATE)
     model = model.to(DEVICE)
