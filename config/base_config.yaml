@@ -16,6 +16,6 @@ TRAIN :
   MAX_LEN       : 144 ## 24*6
   DROPOUT_RATE  : 0.1
   EPOCHS        : 30
-  VISION_PRETRAIN : True
   NUM_WORKER    : 4
+  VISION_PRETRAIN : True
   SAVE_PATH     : output/test0
