@@ -4,28 +4,21 @@ import matplotlib.pyplot as plt
 import cv2
 from tqdm import tqdm
 from glob import glob
-import os, json, pickle, argparse
+import os, pickle, argparse
 from omegaconf import OmegaConf
 
 import torch
 from torch import nn
-from torchvision import models
-from sklearn.metrics import f1_score
 
 from dataset import preprocess
 from dataset.dataset import CustomDataset
 from model.base_model import CNN2RNN
+from metric.metric import accuracy_function
 
 import warnings
 warnings.simplefilter('ignore')
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-def accuracy_function(real, pred):    
-    real = real.cpu()
-    pred = torch.argmax(pred, dim=1).cpu()
-    score = f1_score(real, pred, average='macro')
-    return score
 
 def train_step(model, criterion, optimizer, batch_item, training):
     img = batch_item['img'].to(DEVICE)
