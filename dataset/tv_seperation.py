@@ -8,7 +8,7 @@ if __name__=='__main__':
     
     data_dir = config['DATA']['DATA_ROOT']
     img_folder = f"{config['DATA']['DATA_ROOT']}/{config['DATA']['IMAGE_PATH']}"
-    test_folder = f"{config['DATA']['TEST_FOLDER']}"
+    test_folder = f"{config['DATA']['DATA_ROOT']}/{config['DATA']['TEST_FOLDER']}"
     val_rate = config['DATA']['VALID_RATE']
     train_path = config['DATA']['TRAIN_PATH']
     valid_path = config['DATA']['VALID_PATH']
