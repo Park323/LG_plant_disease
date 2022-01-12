@@ -14,6 +14,8 @@ from dataset import preprocess
 from dataset.dataset import CustomDataset, get_annotations
 from model.base_model import CNN2RNN
 from model.jk_model import DrJeonko
+from model.dense_model import DenseNet
+from utils.scheduler import CosineAnnealingWarmUpRestarts
 from metric.metric import accuracy_function, jk_loss
 
 import warnings
@@ -71,6 +73,8 @@ if __name__=='__main__':
     
     if args.model_name=='base':
         preprocessor = preprocess.Base_Processer(config)
+    elif args.model_name=='dense':
+        preprocessor = preprocess.Base_Processer(config)
     elif args.model_name=='drj':
         preprocessor = preprocess.JK_Processer(config)
         
@@ -111,13 +115,26 @@ if __name__=='__main__':
             model = CNN2RNN(max_len=config.TRAIN.MAX_LEN, embedding_dim=TRAIN.EMBEDDING_DIM, \
                             num_features=TRAIN.NUM_FEATURES, class_n=TRAIN.CLASS_N, \
                             rate=TRAIN.DROPOUT_RATE)
-            criterion = nn.CrossEntropyLoss()
+        elif args.model_name=='dense':
+            model = DenseNet(config)
         elif args.model_name=='drj':
             model = DrJeonko(TRAIN)
-            criterion = jk_loss
-            
+
     model = model.to(DEVICE)
-    optimizer = torch.optim.Adam(model.parameters(), lr=TRAIN.LEARNING_RATE)
+    
+    if args.model_name=='base':
+        criterion = nn.CrossEntropyLoss()
+    elif args.model_name=='dense':
+        criterion = nn.CrossEntropyLoss()
+    elif args.model_name=='drj':
+        criterion = jk_loss
+    
+    optimizer = torch.optim.Adam(model.parameters(), lr=0)
+    scheduler = CosineAnnealingWarmUpRestarts(optimizer, T_0=15, T_mult=2, eta_max=TRAIN.LEARNING_RATE,  T_up=3, gamma=0.5)
+    
+    if os.path.exists(f'{TRAIN.SAVE_PATH}/optimizer_states.pt'):
+        optimizer.load_state_dict(torch.load(f'{TRAIN.SAVE_PATH}/optimizer_states.pt'))
+        scheduler.load_state_dict(torch.load(f'{TRAIN.SAVE_PATH}/scheduler_states.pt'))
     #############################################################################
     
     
@@ -148,7 +165,8 @@ if __name__=='__main__':
                 'Epoch': epoch + 1,
                 'Loss': '{:06f}'.format(batch_loss.item()),
                 'Mean Loss' : '{:06f}'.format(total_loss/(batch+1)),
-                'Mean F-1' : '{:06f}'.format(total_acc/(batch+1))
+                'Mean F-1' : '{:06f}'.format(total_acc/(batch+1)),
+                'Learning_rate' : '{}'.format(optimizer.param_groups[0]['lr'])
             })
         
         if args.for_submission:
@@ -168,7 +186,9 @@ if __name__=='__main__':
                     'Mean Val Loss' : '{:06f}'.format(total_val_loss/(batch+1)),
                     'Mean Val F-1' : '{:06f}'.format(total_val_acc/(batch+1))
                 })
-            
+        
+        scheduler.step(epoch)
+        
         if len(loss_plot)==epoch:
             loss_plot.append(total_loss.item()/(batch+1))
             metric_plot.append(total_acc/(batch+1))
@@ -183,14 +203,22 @@ if __name__=='__main__':
         # check/make directory for model file
         dp = []
         for directory in TRAIN.SAVE_PATH.split('/'):
-            new_dir = '/'.join([*dp, directory])
-            if not os.path.exists(new_dir):
-                os.mkdir(new_dir)
+            if directory:
+                new_dir = '/'.join([*dp, directory])
+                if not os.path.exists(new_dir):
+                    os.mkdir(new_dir)
             dp.append(directory)
         
-        # if np.max(val_metric_plot) == val_metric_plot[-1]:
-        torch.save(model, f'{TRAIN.SAVE_PATH}/model_{epoch+1}.pt')
-        torch.save({'train_loss':loss_plot, 'val_loss':val_loss_plot,
-                    'train_f1':metric_plot, 'val_f1':val_metric_plot},
-                    f'{TRAIN.SAVE_PATH}/train_history.pt')
         
+        if total_val_loss > max(val_metric_plot):
+            torch.save(model, f'{TRAIN.SAVE_PATH}/model_best.pt')
+        
+        if (epoch+1) % config.TRAIN.SAVE_PERIOD==0:
+            torch.save(model, f'{TRAIN.SAVE_PATH}/model_{epoch+1}.pt')
+            torch.save({'train_loss':loss_plot, 'val_loss':val_loss_plot,
+                        'train_f1':metric_plot, 'val_f1':val_metric_plot},
+                        f'{TRAIN.SAVE_PATH}/train_history.pt')
+            torch.save(scheduler.state_dict(),
+                        f'{TRAIN.SAVE_PATH}/scheduler_states.pt')
+            torch.save(optimizer.state_dict(),
+                        f'{TRAIN.SAVE_PATH}/optimizer_states.pt')
