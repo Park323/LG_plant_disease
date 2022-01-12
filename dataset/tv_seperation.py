@@ -24,7 +24,7 @@ if __name__=='__main__':
     
     JOIN = lambda x: test_folder + '/' + x
     test_files = os.listdir(test_folder)
-    test_files = [file for file in list(map(JOIN, files)) if os.path.isdir(file)]
+    test_files = [file for file in list(map(JOIN, test_files)) if os.path.isdir(file)]
     
     JOIN = lambda x: data_dir + '/' + x
     with open(JOIN(train_path), 'w') as f:
