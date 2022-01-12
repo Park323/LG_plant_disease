@@ -74,7 +74,7 @@ if __name__=='__main__':
     if args.model_name=='base':
         preprocessor = preprocess.Base_Processer(config)
     elif args.model_name=='dense':
-        preprocessor = preprocess.Base_Processer(config)
+        preprocessor = preprocess.Dense_Processer(config)
     elif args.model_name=='drj':
         preprocessor = preprocess.JK_Processer(config)
         
@@ -116,7 +116,7 @@ if __name__=='__main__':
                             num_features=TRAIN.NUM_FEATURES, class_n=TRAIN.CLASS_N, \
                             rate=TRAIN.DROPOUT_RATE)
         elif args.model_name=='dense':
-            model = DenseNet(config)
+            model = DenseNet(TRAIN)
         elif args.model_name=='drj':
             model = DrJeonko(TRAIN)
 
@@ -129,8 +129,9 @@ if __name__=='__main__':
     elif args.model_name=='drj':
         criterion = jk_loss
     
-    optimizer = torch.optim.Adam(model.parameters(), lr=0)
-    scheduler = CosineAnnealingWarmUpRestarts(optimizer, T_0=15, T_mult=2, eta_max=TRAIN.LEARNING_RATE,  T_up=3, gamma=0.5)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.00000001)
+    scheduler = CosineAnnealingWarmUpRestarts(optimizer, T_0=15, T_mult=2, 
+                                              eta_max=TRAIN.LEARNING_RATE, T_up=3, gamma=0.5)
     
     if os.path.exists(f'{TRAIN.SAVE_PATH}/optimizer_states.pt'):
         optimizer.load_state_dict(torch.load(f'{TRAIN.SAVE_PATH}/optimizer_states.pt'))
