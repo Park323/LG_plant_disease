@@ -5,8 +5,6 @@ import numpy as np
 import cv2, pickle
 import torch
 
-DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
 def refine_csv(df):
     
     for feature in df.columns:
@@ -118,7 +116,7 @@ class Base_Processer():
         
         
     def label_encoder(self, label):
-        return torch.tensor(self.label_dict[label], dtype=torch.long, device=DEVICE)
+        return torch.tensor(self.label_dict[label], dtype=torch.long)
     
     @property
     def label_decoder(self):

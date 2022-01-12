@@ -24,7 +24,7 @@ DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 def train_step(model, criterion, optimizer, batch_item, training, json_process=None):
     img = batch_item['img'].to(DEVICE)
     csv_feature = batch_item['csv_feature'].to(DEVICE)
-    label = batch_item['label']
+    label = batch_item['label'].to(DEVICE)
     if training is True:
         annotations = [get_annotations(path, json_process) for path in batch_item['json_path']]
         
