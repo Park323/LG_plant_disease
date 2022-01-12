@@ -40,7 +40,7 @@ def train_step(model, criterion, optimizer, batch_item, training, json_process=N
     else:
         model.eval()
         with torch.no_grad():
-            output = model(img, csv_feature)
+            output = model(img, csv_feature, None)
             loss = criterion(output, label)
         score = accuracy_function(label, output)
         return loss, score

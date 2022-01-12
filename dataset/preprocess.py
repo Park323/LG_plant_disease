@@ -17,99 +17,23 @@ class Base_Processer():
     
     def __init__(self, config):
         self.config = config
-        # self.crop_description = list(map(str,range(1,7)))
-        # self.disease_description = {
-        #   'a1':'딸기잿빛곰팡이병', 'a2':'딸기흰가루병', 'a3':'오이노균병', 'a4':'오이흰가루병', 
-        #   'a5':'토마토흰가루병', 'a6':'토마토잿빛곰팡이병', 'a7':'고추탄저병', 'a8':'고추흰가루병', 
-        #   'a9':'파프리카흰가루병', 'a10':'파프리카잘록병', 'a11':'시설포도탄저병', 'a12':'시설포도노균병',
-        #   'b1':'냉해피해', 'b2':'열과', 'b3':'칼슘결핍', 'b4':'일소피해', 'b5':'축과병', 
-        #   'b6':'다량원소결핍 (N)', 'b7':'다량원소결핍 (P)', 'b8':'다량원소결핍 (K)'
-        # }
+        
+        crop = {'1':'딸기','2':'토마토','3':'파프리카','4':'오이','5':'고추','6':'시설포도'}
+        disease = {'1':{'a1':'딸기잿빛곰팡이병','a2':'딸기흰가루병','b1':'냉해피해','b6':'다량원소결핍 (N)','b7':'다량원소결핍 (P)','b8':'다량원소결핍 (K)'},
+                '2':{'a5':'토마토흰가루병','a6':'토마토잿빛곰팡이병','b2':'열과','b3':'칼슘결핍','b6':'다량원소결핍 (N)','b7':'다량원소결핍 (P)','b8':'다량원소결핍 (K)'},
+                '3':{'a9':'파프리카흰가루병','a10':'파프리카잘록병','b3':'칼슘결핍','b6':'다량원소결핍 (N)','b7':'다량원소결핍 (P)','b8':'다량원소결핍 (K)'},
+                '4':{'a3':'오이노균병','a4':'오이흰가루병','b1':'냉해피해','b6':'다량원소결핍 (N)','b7':'다량원소결핍 (P)','b8':'다량원소결핍 (K)'},
+                '5':{'a7':'고추탄저병','a8':'고추흰가루병','b3':'칼슘결핍','b6':'다량원소결핍 (N)','b7':'다량원소결핍 (P)','b8':'다량원소결핍 (K)'},
+                '6':{'a11':'시설포도탄저병','a12':'시설포도노균병','b4':'일소피해','b5':'축과병'}}
+        risk = {'1':'초기','2':'중기','3':'말기'}
 
-        # label_description = []
-        # for crop in crop_description: 
-        #   label_description.append(crop+'_00_0')
-        #   for disease in disease_description:
-        #     for level in ['1','2','3']:
-        #       label_description.append(crop+'_'+disease+'_'+level) 
-
-        self.label_description = [
-          '1_00_0', 
-          '1_a1_1', '1_a1_2', '1_a1_3', 
-          '1_a2_1', '1_a2_2', '1_a2_3', 
-          '1_b1_1', '1_b1_2', '1_b1_3',
-          '1_b6_1', '1_b6_2', '1_b6_3',
-          '1_b7_1', '1_b7_2', '1_b7_3',
-          '1_b8_1', '1_b8_2', '1_b8_3',
-          '2_00_0',
-          '2_a5_1', '2_a5_2', '2_a5_3',
-          '2_a6_1', '2_a6_2', '2_a6_3',
-          '2_b2_1', '2_b2_2', '2_b2_3',
-          '2_b3_1', '2_b3_2', '2_b3_3',
-          '2_b6_1', '2_b6_2', '2_b6_3',
-          '2_b7_1', '2_b7_2', '2_b7_3',
-          '2_b8_1', '2_b8_2', '2_b8_3',
-          '3_00_0',
-          '3_a9_1', '3_a9_2', '3_a9_3',
-          '3_a10_1', '3_a10_2', '3_a10_3',
-          '3_b3_1', '3_b3_2', '3_b3_3',
-          '3_b6_1', '3_b6_2', '3_b6_3',
-          '3_b7_1', '3_b7_2', '3_b7_3',
-          '3_b8_1', '3_b8_2', '3_b8_3',
-          '4_00_0',
-          '4_a3_1', '4_a3_2', '4_a3_3',
-          '4_a4_1', '4_a4_2', '4_a4_3',
-          '4_b1_1', '4_b1_2', '4_b1_3',
-          '4_b6_1', '4_b6_2', '4_b6_3',
-          '4_b7_1', '4_b7_2', '4_b7_3',
-          '4_b8_1', '4_b8_2', '4_b8_3',
-          '5_00_0',
-          '5_a7_1', '5_a7_2', '5_a7_3',
-          '5_a8_1', '5_a8_2', '5_a8_3',
-          '5_b3_1', '5_b3_2', '5_b3_3',
-          '5_b6_1', '5_b6_2', '5_b6_3',
-          '5_b7_1', '5_b7_2', '5_b7_3',
-          '5_b8_1', '5_b8_2', '5_b8_3',
-          '6_00_0',
-          '6_a11_1', '6_a11_2', '6_a11_3',
-          '6_a12_1', '6_a12_2', '6_a12_3',
-          '6_b4_1', '6_b4_2', '6_b4_3',
-          '6_b5_1', '6_b5_2', '6_b5_3'
-          ]
-        # self.label_description = {
-        #     '3_00_0': '파프리카_정상',
-        #     '3_a9_1': '파프리카흰가루병_초기',
-        #     '3_a9_2': '파프리카흰가루병_중기',
-        #     '3_a9_3': '파프리카흰가루병_말기',
-        #     '3_a10_1': '파프리카잘록병_초기',
-        #     '3_a10_2': '파프리카잘록병_중기',
-        #     '3_a10_3': '파프리카잘록병_말기',
-        #     '3_b3_1': '칼슘결핍_초기',
-        #     '3_b3_2': '칼슘결핍_중기',
-        #     '3_b3_3': '칼슘결핍_말기',
-        #     '3_b6_1': '다량원소결핍 (N)_초기',
-        #     '3_b6_2': '다량원소결핍 (N)_중기',
-        #     '3_b6_3': '다량원소결핍 (N)_말기',
-        #     '3_b7_1': '다량원소결핍 (P)_초기',
-        #     '3_b7_2': '다량원소결핍 (P)_중기',
-        #     '3_b7_3': '다량원소결핍 (P)_말기',
-        #     '3_b8_1': '다량원소결핍 (K)_초기',
-        #     '3_b8_2': '다량원소결핍 (K)_중기',
-        #     '3_b8_3': '다량원소결핍 (K)_말기',
-        #     '6_00_0': '시설포도_정상',
-        #     '6_a11_1': '시설포도탄저병_초기',
-        #     '6_a11_2': '시설포도탄저병_중기',
-        #     '6_a11_3': '시설포도탄저병_말기',
-        #     '6_a12_1': '시설포도노균병_초기',
-        #     '6_a12_2': '시설포도노균병_중기',
-        #     '6_a12_3': '시설포도노균병_말기',
-        #     '6_b4_1': '일소피해_초기',
-        #     '6_b4_2': '일소피해_중기',
-        #     '6_b4_3': '일소피해_말기',
-        #     '6_b5_1': '축과병_초기',
-        #     '6_b5_2': '축과병_중기',
-        #     '6_b5_3': '축과병_말기',
-        #     }
+        self.label_description = {}
+        for key, value in disease.items():
+            self.label_description[f'{key}_00_0'] = f'{crop[key]}_정상'
+            for disease_code in value:
+                for risk_code in risk:
+                    label = f'{key}_{disease_code}_{risk_code}'
+                    self.label_description[label] = f'{crop[key]}_{disease[key][disease_code]}_{risk[risk_code]}'
 
         self.csv_feature_dict=None    
         self.label_dict = {key:idx for idx, key in enumerate(self.label_description)}
@@ -169,14 +93,19 @@ class Base_Processer():
     def csv_preprocessing(self, df):
         config=self.config
         df = df.copy()
+        df = df[self.csv_feature_dict.keys()]
+        df = refine_csv(df)
                 
         # MinMax scaling
         for col in self.csv_feature_dict.keys():
             df[col] = df[col] - self.csv_feature_dict[col][0]
             df[col] = df[col] / (self.csv_feature_dict[col][1]-self.csv_feature_dict[col][0])
-        
+        # zero padding
+        pad = np.zeros((config.TRAIN.MAX_LEN, len(df.columns)))
+        length = min(config.TRAIN.MAX_LEN, len(df))
+        pad[-length:] = df.to_numpy()[-length:]
         # transpose to sequential data
-        csv_feature = df[self.csv_feature_dict.keys()].to_numpy()[-config.TRAIN.MAX_LEN:].T
+        csv_feature = pad.T
         
         return csv_feature
     
