@@ -53,6 +53,7 @@ if __name__=='__main__':
                         type=int, default=0)
     parser.add_argument('-m', '--model_name',
                         type=str, default='base')
+    parser.add_argument('-s','--for_submission', action='store_true')
     
     args = parser.parse_args()
     config = OmegaConf.load(f'config/config.yaml')
@@ -78,15 +79,24 @@ if __name__=='__main__':
     else:
         preprocessor.init_csv()
     
-    with open(TRAIN_PATH, 'r') as f:
-        train_dataset = CustomDataset(f.read().split('\n'), pre=preprocessor)
-    with open(VALID_PATH, 'r') as f:
-        val_dataset = CustomDataset(f.read().split('\n'), pre=preprocessor)
-
-    train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=TRAIN.BATCH_SIZE, 
-                                                   num_workers=config.TRAIN.NUM_WORKER, shuffle=True)
-    val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=TRAIN.BATCH_SIZE, 
-                                                 num_workers=config.TRAIN.NUM_WORKER, shuffle=False)
+    if args.for_submission:
+        with open(TRAIN_PATH, 'r') as f:
+            train_paths = f.read().split('\n')
+        with open(VALID_PATH, 'r') as f:
+            train_paths = [*train_paths, *f.read().split('\n')]
+        train_dataset = CustomDataset(train_paths, pre=preprocessor)
+        train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=TRAIN.BATCH_SIZE, 
+                                                    num_workers=config.TRAIN.NUM_WORKER, shuffle=True)
+    else:
+        with open(TRAIN_PATH, 'r') as f:
+            train_dataset = CustomDataset(f.read().split('\n'), pre=preprocessor)
+        with open(VALID_PATH, 'r') as f:
+            val_dataset = CustomDataset(f.read().split('\n'), pre=preprocessor)
+            
+        train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=TRAIN.BATCH_SIZE, 
+                                                    num_workers=config.TRAIN.NUM_WORKER, shuffle=True)
+        val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=TRAIN.BATCH_SIZE, 
+                                                    num_workers=config.TRAIN.NUM_WORKER, shuffle=False)
     #####################################################################
     
     ################  Model / Loss / Optimizer / Scheduler 정의  ################
@@ -141,20 +151,24 @@ if __name__=='__main__':
                 'Mean F-1' : '{:06f}'.format(total_acc/(batch+1))
             })
         
-        tqdm_dataset = tqdm(enumerate(val_dataloader))
-        training = False
-        for batch, batch_item in tqdm_dataset:
-            batch_loss, batch_acc = train_step(model, criterion, optimizer, batch_item, training)
-            total_val_loss += batch_loss
-            total_val_acc += batch_acc
+        if args.for_submission:
+            total_val_loss = 0
+            total_val_acc = 0
+        else:
+            tqdm_dataset = tqdm(enumerate(val_dataloader))
+            training = False
+            for batch, batch_item in tqdm_dataset:
+                batch_loss, batch_acc = train_step(model, criterion, optimizer, batch_item, training)
+                total_val_loss += batch_loss
+                total_val_acc += batch_acc
+                
+                tqdm_dataset.set_postfix({
+                    'Epoch': epoch + 1,
+                    'Val Loss': '{:06f}'.format(batch_loss.item()),
+                    'Mean Val Loss' : '{:06f}'.format(total_val_loss/(batch+1)),
+                    'Mean Val F-1' : '{:06f}'.format(total_val_acc/(batch+1))
+                })
             
-            tqdm_dataset.set_postfix({
-                'Epoch': epoch + 1,
-                'Val Loss': '{:06f}'.format(batch_loss.item()),
-                'Mean Val Loss' : '{:06f}'.format(total_val_loss/(batch+1)),
-                'Mean Val F-1' : '{:06f}'.format(total_val_acc/(batch+1))
-            })
-        
         if len(loss_plot)==epoch:
             loss_plot.append(total_loss.item()/(batch+1))
             metric_plot.append(total_acc/(batch+1))
