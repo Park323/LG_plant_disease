@@ -52,9 +52,6 @@ class CustomDataset(Dataset):
         if self.mode == 'train':
             with open(json_path, 'r') as f:
                 json_file = json.load(f)
-            
-            if self.json_preprocessing:
-                json_file = self.json_preprocessing(json_file)
                 
             crop = json_file['annotations']['crop']
             disease = json_file['annotations']['disease']
@@ -64,10 +61,20 @@ class CustomDataset(Dataset):
             return {
                 'img' : torch.tensor(img, dtype=torch.float32),
                 'csv_feature' : torch.tensor(csv_feature, dtype=torch.float32),
-                'label' : torch.tensor(self.preprocess.label_encoder[label], dtype=torch.long)
+                'json_path' : json_path,
+                'label' : self.preprocess.label_encoder(label)
             }
         else:
             return {
                 'img' : torch.tensor(img, dtype=torch.float32),
                 'csv_feature' : torch.tensor(csv_feature, dtype=torch.float32)
             }
+            
+def get_annotations(json_path, process):
+    
+    with open(json_path, 'r') as f:
+        json_file = json.load(f)
+        
+    annotations = process(json_file)
+    
+    return annotations

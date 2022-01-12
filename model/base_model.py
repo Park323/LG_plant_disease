@@ -8,7 +8,7 @@ class CNN2RNN(nn.Module):
         self.cnn = CNN_Encoder(embedding_dim, rate)
         self.rnn = RNN_Decoder(max_len, embedding_dim, num_features, class_n, rate)
         
-    def forward(self, img, seq):
+    def forward(self, img, seq, annotations, train=True):
         cnn_output = self.cnn(img)
         output = self.rnn(cnn_output, seq)
         

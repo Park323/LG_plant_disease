@@ -3,6 +3,9 @@ from tqdm import tqdm
 import pandas as pd
 import numpy as np
 import cv2, pickle
+import torch
+
+DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 class Base_Processer():
     
@@ -44,8 +47,15 @@ class Base_Processer():
             }
 
         self.csv_feature_dict=None    
-        self.label_encoder = {key:idx for idx, key in enumerate(self.label_description)}
-        self.label_decoder = {val:key for key, val in self.label_encoder.items()}
+        self.label_dict = {key:idx for idx, key in enumerate(self.label_description)}
+        
+        
+    def label_encoder(self, label):
+        return torch.tensor(self.label_dict[label], dtype=torch.long, device=DEVICE)
+    
+    @property
+    def label_decoder(self):
+        return {val:key for key, val in self.label_dict.items()}
         
     def init_csv(self):
         config = self.config
@@ -69,10 +79,9 @@ class Base_Processer():
 
         # feature 별 최대값, 최솟값 dictionary 생성
         self.csv_feature_dict = {csv_features[i]:[min_arr[i], max_arr[i]] for i in range(len(csv_features))}
-        with open(f'{config.DATA.DATA_ROOT}/prepro_dict.pkl', 'wb') as f:
+        with open(f'{config.DATA.DATA_ROOT}/base_pre_dict.pkl', 'wb') as f:
             pickle.dump({'csv_feature_dict':self.csv_feature_dict, 
-                        'label_encoder':self.label_encoder,
-                        'label_decoder':self.label_decoder}, f)
+                        'label_dict':self.label_dict}, f)
 
     def img_preprocessing(self, img):
         img = cv2.resize(img, dsize=(256, 256), interpolation=cv2.INTER_AREA)
@@ -81,7 +90,13 @@ class Base_Processer():
         return img
 
     def json_preprocessing(self, json_dic):
-        return json_dic
+        annotations = []
+        
+        for annot in json_dic['annotations']['part']:
+            #(X,Y,W,H)
+            annotations.append(f"{annot['x']} {annot['y']} {annot['w']} {annot['h']}\n")
+            
+        return annotations
         
     def csv_preprocessing(self, df):
         config=self.config
@@ -101,5 +116,99 @@ class Base_Processer():
         with open(path, 'rb') as f:
             dict = pickle.load(f)
         self.csv_feature_dict = dict['csv_feature_dict']
-        self.label_decoder    = dict['label_decoder']
-        self.label_encoder    = dict['label_encoder']
+        self.label_dict    = dict['label_dict']
+        
+class JK_Processer():
+    
+    def __init__(self, config):
+        self.config = config
+        self.label_description = {
+            'crop': {'1':'딸기', '2':'토마토', '3':'파프리카',
+                     '4':'오이', '5':'고추', '6':'시설포도'},
+            'disease': {'00':'정상', 
+                        'a1':'딸기잿빛곰팡이병', 'a2':'딸기흰가루병', 'a3':'오이노균병', 'a4':'오이흰가루병', 
+                        'a5':'토마토흰가루병', 'a6':'토마토잿빛곰팡이병', 'a7':'고추탄저병', 'a8':'고추흰가루병', 
+                        'a9':'파프리카흰가루병', 'a10':'파프리카잘록병', 'a11':'시설포도탄저병', 'a12':'시설포도노균병',
+                        'b1':'냉해피해', 'b2':'열과', 'b3':'칼슘결핍', 'b4':'일소피해', 'b5':'축과병', 
+                        'b6':'다량원소결핍 (N)', 'b7':'다량원소결핍 (P)', 'b8':'다량원소결핍 (K)',
+                        'c1':'딸기잿빛곰팡이병반응', 'c2':'딸기흰가루병반응', 'c3':'오이노균병반응', 'c4':'오이흰가루병반응', 
+                        'c5':'토마토흰가루병반응', 'c6':'토마토잿빛곰팡이병반응', 'c7':'고추탄저병반응', 'c8':'고추흰가루병반응', 
+                        'c9':'파프리카흰가루병반응', 'c10':'파프리카잘록병반응', 'c11':'시설포도탄저병반응', 'c12':'시설포도노균병반응'},
+            'risk': {'0':'정상', '1':'초기', '2':'중기', '3':'말기'},
+            }
+
+        self.csv_feature_dict=None    
+        self.crop_encoder = {key:idx for idx, key in enumerate(self.label_description['crop'])}
+        self.disease_encoder = {key:idx for idx, key in enumerate(self.label_description['disease'])}
+        self.risk_encoder = {key:idx for idx, key in enumerate(self.label_description['risk'])}
+        
+    def label_encoder(self, label):
+        crop, disease, risk = label.split('_')
+        return (torch.tensor(self.crop_encoder[crop], dtype=torch.long),
+                torch.tensor(self.disease_encoder[disease], dtype=torch.long),
+                torch.tensor(self.risk_encoder[risk], dtype=torch.long),)
+        
+    def init_csv(self):
+        config = self.config
+
+        # 분석에 사용할 feature 선택
+        csv_features = ['내부 온도 1 평균', '내부 온도 1 최고', '내부 온도 1 최저', '내부 습도 1 평균', '내부 습도 1 최고', 
+                        '내부 습도 1 최저', '내부 이슬점 평균', '내부 이슬점 최고', '내부 이슬점 최저']
+
+        image_folder = f'{config.DATA.DATA_ROOT}/{config.DATA.IMAGE_PATH}'
+        csv_files = sorted(glob(image_folder + '/*/*.csv'))
+
+        temp_csv = pd.read_csv(csv_files[0])[csv_features]
+        max_arr, min_arr = temp_csv.max().to_numpy(), temp_csv.min().to_numpy()
+
+        # feature 별 최대값, 최솟값 계산
+        for csv in tqdm(csv_files[1:]):
+            temp_csv = pd.read_csv(csv)[csv_features]
+            temp_max, temp_min = temp_csv.max().to_numpy(), temp_csv.min().to_numpy()
+            max_arr = np.max([max_arr,temp_max], axis=0)
+            min_arr = np.min([min_arr,temp_min], axis=0)
+
+        # feature 별 최대값, 최솟값 dictionary 생성
+        self.csv_feature_dict = {csv_features[i]:[min_arr[i], max_arr[i]] for i in range(len(csv_features))}
+        with open(f'{config.DATA.DATA_ROOT}/drj_pre_dict.pkl', 'wb') as f:
+            pickle.dump({'csv_feature_dict':self.csv_feature_dict, 
+                        'crop_encoder':self.crop_encoder,
+                        'disease_encoder':self.disease_encoder, 
+                        'risk_encoder':self.risk_encoder}, f)
+
+    def img_preprocessing(self, img):
+        img = cv2.resize(img, dsize=(256, 256), interpolation=cv2.INTER_AREA)
+        img = img.astype(np.float32)/255
+        img = np.transpose(img, (2,0,1))
+        return img
+
+    def json_preprocessing(self, json_dic):
+        annotations = []
+        
+        for annot in json_dic['annotations']['part']:
+            #(X,Y,W,H)
+            annotations.append(f"{annot['x']} {annot['y']} {annot['w']} {annot['h']}")
+            
+        return annotations
+        
+    def csv_preprocessing(self, df):
+        config=self.config
+        df = df.copy()
+                
+        # MinMax scaling
+        for col in self.csv_feature_dict.keys():
+            df[col] = df[col] - self.csv_feature_dict[col][0]
+            df[col] = df[col] / (self.csv_feature_dict[col][1]-self.csv_feature_dict[col][0])
+        
+        # transpose to sequential data
+        csv_feature = df[self.csv_feature_dict.keys()].to_numpy()[-config.TRAIN.MAX_LEN:].T
+        
+        return csv_feature
+    
+    def load_dictionary(self, path):
+        with open(path, 'rb') as f:
+            dict = pickle.load(f)
+        self.csv_feature_dict = dict['csv_feature_dict']
+        self.crop_encoder     = dict['crop_encoder']
+        self.disease_encoder  = dict['disease_encoder']
+        self.risk_encoder     = dict['risk_encoder']

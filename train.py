@@ -4,31 +4,34 @@ import matplotlib.pyplot as plt
 import cv2
 from tqdm import tqdm
 from glob import glob
-import os, pickle, argparse
+import os, argparse
 from omegaconf import OmegaConf
 
 import torch
 from torch import nn
 
 from dataset import preprocess
-from dataset.dataset import CustomDataset
+from dataset.dataset import CustomDataset, get_annotations
 from model.base_model import CNN2RNN
-from metric.metric import accuracy_function
+from model.jk_model import DrJeonko
+from metric.metric import accuracy_function, jk_loss
 
 import warnings
 warnings.simplefilter('ignore')
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-def train_step(model, criterion, optimizer, batch_item, training):
+def train_step(model, criterion, optimizer, batch_item, training, json_process=None):
     img = batch_item['img'].to(DEVICE)
     csv_feature = batch_item['csv_feature'].to(DEVICE)
-    label = batch_item['label'].to(DEVICE)
+    label = batch_item['label']
     if training is True:
+        annotations = [get_annotations(path, json_process) for path in batch_item['json_path']]
+        
         model.train()
         optimizer.zero_grad()
         with torch.cuda.amp.autocast():
-            output = model(img, csv_feature)
+            output = model(img, csv_feature, annotations)
             loss = criterion(output, label)
         loss.backward()
         optimizer.step()
@@ -63,12 +66,17 @@ if __name__=='__main__':
     VALID_PATH = DATA.DATA_ROOT + '/' + DATA.VALID_PATH
     
     ##########################      DataLoader 정의     #########################
-    preprocessor = preprocess.Base_Processer(config)
-    if os.path.exists(f'{DATA.DATA_ROOT}/prepro_dict.pkl'):
-        preprocessor.load_dictionary(f'{DATA.DATA_ROOT}/prepro_dict.pkl')
+    print('Data Loading...')
+    
+    if args.model_name=='base':
+        preprocessor = preprocess.Base_Processer(config)
+    elif args.model_name=='drj':
+        preprocessor = preprocess.JK_Processer(config)
+        
+    if os.path.exists(f'{DATA.DATA_ROOT}/{args.model_name}_pre_dict.pkl'):
+        preprocessor.load_dictionary(f'{DATA.DATA_ROOT}/{args.model_name}_pre_dict.pkl')
     else:
         preprocessor.init_csv()
-    
     
     with open(TRAIN_PATH, 'r') as f:
         train_dataset = CustomDataset(f.read().split('\n'), pre=preprocessor)
@@ -82,6 +90,8 @@ if __name__=='__main__':
     #####################################################################
     
     ################  Model / Loss / Optimizer / Scheduler 정의  ################
+    print('Model Loading...')
+    
     if args.from_epoch:
         assert os.path.exists(TRAIN.SAVE_PATH + '/' + f'model_{args.from_epoch}.pt'), f'Model is not Exists: {TRAIN.SAVE_PATH}/model_{args.from_epoch}.pt'
         model = torch.load(TRAIN.SAVE_PATH + '/' + f'model_{args.from_epoch}.pt')
@@ -91,13 +101,19 @@ if __name__=='__main__':
             model = CNN2RNN(max_len=config.TRAIN.MAX_LEN, embedding_dim=TRAIN.EMBEDDING_DIM, \
                             num_features=TRAIN.NUM_FEATURES, class_n=TRAIN.CLASS_N, \
                             rate=TRAIN.DROPOUT_RATE)
+            criterion = nn.CrossEntropyLoss()
+        elif args.model_name=='drj':
+            model = DrJeonko(TRAIN)
+            criterion = jk_loss
+            
     model = model.to(DEVICE)
     optimizer = torch.optim.Adam(model.parameters(), lr=TRAIN.LEARNING_RATE)
-    criterion = nn.CrossEntropyLoss()
     #############################################################################
     
     
     #########################         TRAIN         #############################
+    print('Train Start')
+    
     if args.from_epoch and os.path.exists(f'{TRAIN.SAVE_PATH}/train_history.pt'):
         hists = torch.load(f'{TRAIN.SAVE_PATH}/train_history.pt')
         loss_plot, val_loss_plot, metric_plot, val_metric_plot = hists.values()
@@ -114,7 +130,7 @@ if __name__=='__main__':
         tqdm_dataset = tqdm(enumerate(train_dataloader))
         training = True
         for batch, batch_item in tqdm_dataset:
-            batch_loss, batch_acc = train_step(model, criterion, optimizer, batch_item, training)
+            batch_loss, batch_acc = train_step(model, criterion, optimizer, batch_item, training, preprocessor.json_preprocessing)
             total_loss += batch_loss
             total_acc += batch_acc
             

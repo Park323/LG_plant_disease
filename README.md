@@ -10,6 +10,7 @@
 LG_plant_disease  
 ㄴconfig  
 ㄴdataset  
+ㄴmetric  
 ㄴmodel  
 ㄴtrain.py  
-ㄴinference.py
+ㄴinference.py  
