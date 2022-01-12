@@ -32,7 +32,7 @@ def predict(config, model, dataset, training=False):
         img = batch_item['img'].to(DEVICE)
         seq = batch_item['csv_feature'].to(DEVICE)
         with torch.no_grad():
-            output = model(img, seq)
+            output = model(img, seq, None)
         output = torch.tensor(torch.argmax(output, axis=-1), dtype=torch.int32).cpu().numpy()
         results.extend(output)
         if training:
@@ -66,7 +66,7 @@ if __name__=='__main__':
         preprocessor.init_csv()
     
     with open(f"{DATA.DATA_ROOT}/{DATA.TEST_PATH}", 'r') as f:
-        test_dataset = CustomDataset(f.read().split('\n'), pre=preprocessor)
+        test_dataset = CustomDataset(f.read().split('\n'), pre=preprocessor, mode='test')
     
     test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=TEST.BATCH_SIZE, num_workers=TEST.NUM_WORKER, shuffle=False)
     
@@ -80,4 +80,5 @@ if __name__=='__main__':
     
     submission = pd.read_csv(f'{TEST.SAMPLE_PATH}')
     submission['label'] = preds
+    submission['label'] = [preprocessor.label_decoder[pred] for pred in preds]
     submission.to_csv(f'{TEST.SUBMIT_PATH}', index=False)
