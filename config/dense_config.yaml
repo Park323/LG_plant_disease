@@ -1,0 +1,9 @@
+####   CONFIGURATION   ####
+TRAIN :
+  BATCH_SIZE    : 32
+  CLASS_N       : 111
+  LEARNING_RATE : 0.001
+  DROPOUT_RATE  : 0.2
+  EPOCHS        : 30
+  VISION_PRETRAIN : True
+  SAVE_PATH     : output/dense0
