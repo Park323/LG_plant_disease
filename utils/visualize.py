@@ -20,13 +20,13 @@ def plot_hist(hist):
    plt.show()
    
 if __name__=='__main__':
-    parser = argparse.ArgumentParser
+    parser = argparse.ArgumentParser()
     parser.add_argument('-m','--model',type=str,required=True)
     args = parser.parse_args()
     
     with open(f'config/{args.model}_config.yaml') as f:
         config = yaml.load(f,Loader=yaml.FullLoader)
     
-    hist = load(f'{config.TRAIN.SAVE_PATH}/train_history.pt')
+    hist = load(f"{config['TRAIN']['SAVE_PATH']}/train_history.pt")
     
     plot_hist(hist)
