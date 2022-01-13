@@ -14,7 +14,7 @@ from dataset import preprocess
 from dataset.dataset import CustomDataset, get_annotations
 from model.base_model import CNN2RNN
 from model.jk_model import DrJeonko
-from model.dense_model import DenseNet
+from model.lab_model import LAB_model
 from utils.scheduler import CosineAnnealingWarmUpRestarts
 from utils.metric import *
 
@@ -26,14 +26,16 @@ DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 def train_step(model, criterion, optimizer, batch_item, training, preprocess=None, metric_function=accuracy_function):
     img = batch_item['img'].to(DEVICE)
     csv_feature = batch_item['csv_feature'].to(DEVICE)
-    label = batch_item['label']#.to(DEVICE)
+    label = batch_item['label']
+    label = label.to(DEVICE) if isinstance(label, torch.Tensor) else [item.to(DEVICE) for item in label]
+    
     if training is True:
-        annotations = [get_annotations(path, preprocess.json_processing) for path in batch_item['json_path']]
+        # annotations = [get_annotations(path, preprocess.json_processing) for path in batch_item['json_path']]
         
         model.train()
         optimizer.zero_grad()
         with torch.cuda.amp.autocast():
-            output = model(img, csv_feature, annotations)
+            output = model(img, csv_feature, labels=label)
             loss = criterion(output, label)
         loss.backward()
         optimizer.step()
@@ -42,7 +44,7 @@ def train_step(model, criterion, optimizer, batch_item, training, preprocess=Non
     else:
         model.eval()
         with torch.no_grad():
-            output = model(img, csv_feature, None)
+            output = model(img, csv_feature, labels=label, train=False)
             loss = criterion(output, label)
         score = metric_function(label, output, preprocess)
         return loss, score
@@ -73,15 +75,15 @@ if __name__=='__main__':
     
     if args.model_name=='base':
         preprocessor = preprocess.Base_Processor(config)
-    elif args.model_name=='dense':
-        preprocessor = preprocess.Base_Processor2(config)
+    elif args.model_name=='lab':
+        preprocessor = preprocess.LAB_Processor(config)
     elif args.model_name=='drj':
         preprocessor = preprocess.Base_Processor2(config)
         
     if os.path.exists(f'{DATA.DATA_ROOT}/{preprocessor.dict_name}'):
         preprocessor.load_dictionary(f'{DATA.DATA_ROOT}/{preprocessor.dict_name}')
     else:
-        preprocessor.init_csv()
+        preprocessor.initialize()
     
     if args.for_submission:
         with open(TRAIN_PATH, 'r') as f:
@@ -115,8 +117,8 @@ if __name__=='__main__':
             model = CNN2RNN(max_len=config.TRAIN.MAX_LEN, embedding_dim=TRAIN.EMBEDDING_DIM, \
                             num_features=TRAIN.NUM_FEATURES, class_n=TRAIN.CLASS_N, \
                             rate=TRAIN.DROPOUT_RATE)
-        elif args.model_name=='dense':
-            model = DenseNet(TRAIN)
+        elif args.model_name=='lab':
+            model = LAB_model(TRAIN)
         elif args.model_name=='drj':
             model = DrJeonko(TRAIN)
 
@@ -125,9 +127,9 @@ if __name__=='__main__':
     if args.model_name=='base':
         criterion = base_loss
         metric_function = accuracy_function
-    elif args.model_name=='dense':
-        criterion = dense_loss
-        metric_function = seperated_metric
+    elif args.model_name=='lab':
+        criterion = lab_loss
+        metric_function = lab_metric
     elif args.model_name=='drj':
         criterion = seperated_loss
         metric_function = seperated_metric

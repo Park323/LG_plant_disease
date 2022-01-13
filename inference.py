@@ -15,7 +15,7 @@ from sklearn.metrics import f1_score
 from dataset import preprocess
 from dataset.dataset import CustomDataset
 from model.base_model import CNN2RNN
-from utils.metric import accuracy_function
+from utils.metric import *
 
 import warnings
 warnings.simplefilter('ignore')
@@ -32,8 +32,7 @@ def predict(config, model, dataset, training=False):
         img = batch_item['img'].to(DEVICE)
         seq = batch_item['csv_feature'].to(DEVICE)
         with torch.no_grad():
-            output = model(img, seq, None)
-        output = torch.tensor(torch.argmax(output, axis=-1), dtype=torch.int32).cpu().numpy()
+            output = model(img, seq, train=False)
         results.extend(output)
         if training:
             answer.extend(batch_item['label'])
@@ -56,14 +55,22 @@ if __name__=='__main__':
     training = args.training
     
     if args.model_name=='base':
-        preprocessor = preprocess.Base_Processer(config)
+        preprocessor = preprocess.Base_Processor(config)
+        criterion = base_loss
+        metric_function = accuracy_function
+    elif args.model_name=='lab':
+        preprocessor = preprocess.LAB_Processor(config)
+        criterion = lab_loss
+        metric_function = lab_metric
     elif args.model_name=='drj':
-        preprocessor = preprocess.JK_Processer(config)
+        preprocessor = preprocess.Base_Processor2(config)
+        criterion = seperated_loss
+        metric_function = seperated_metric
         
-    if os.path.exists(f'{DATA.DATA_ROOT}/{args.model_name}_pre_dict.pkl'):
-        preprocessor.load_dictionary(f'{DATA.DATA_ROOT}/{args.model_name}_pre_dict.pkl')
+    if os.path.exists(f'{DATA.DATA_ROOT}/{preprocessor.dict_name}'):
+        preprocessor.load_dictionary(f'{DATA.DATA_ROOT}/{preprocessor.dict_name}')
     else:
-        preprocessor.init_csv()
+        preprocessor.initialize()
     
     with open(f"{DATA.DATA_ROOT}/{DATA.TEST_PATH}", 'r') as f:
         test_dataset = CustomDataset(f.read().split('\n'), pre=preprocessor, mode='test')
@@ -75,10 +82,9 @@ if __name__=='__main__':
     preds, answer = predict(TEST, model, test_dataloader, training)
     
     if training:
-        score = accuracy_function(answer, preds)
+        score = metric_function(answer, preds)
         print(f"f1-score : {score}")
     
     submission = pd.read_csv(f'{TEST.SAMPLE_PATH}')
-    submission['label'] = preds
-    submission['label'] = [preprocessor.label_decoder(pred) for pred in preds]
+    submission['label'] = metric_function(None, preds, preprocessor, inference=True)
     submission.to_csv(f'{TEST.SUBMIT_PATH}', index=False)

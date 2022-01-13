@@ -31,7 +31,7 @@ class DrJeonko(nn.Module):
                                      nn.Linear(int(config.EMBEDDING_DIM/2), 1),
                                      nn.ReLU())
         
-    def forward(self, img, seq, json, train=True):
+    def forward(self, img, seq, json=None, train=True, **kwargs):
         feature1 = self.cnn(img)
         output1 = self.fc_crop(feature1)
         feature2 = self.rnn(feature1, seq)
