@@ -16,19 +16,19 @@ from model.base_model import CNN2RNN
 from model.jk_model import DrJeonko
 from model.dense_model import DenseNet
 from utils.scheduler import CosineAnnealingWarmUpRestarts
-from metric.metric import accuracy_function, jk_loss
+from utils.metric import *
 
 import warnings
 warnings.simplefilter('ignore')
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-def train_step(model, criterion, optimizer, batch_item, training, json_process=None):
+def train_step(model, criterion, optimizer, batch_item, training, preprocess=None, metric_function=accuracy_function):
     img = batch_item['img'].to(DEVICE)
     csv_feature = batch_item['csv_feature'].to(DEVICE)
-    label = batch_item['label'].to(DEVICE)
+    label = batch_item['label']#.to(DEVICE)
     if training is True:
-        annotations = [get_annotations(path, json_process) for path in batch_item['json_path']]
+        annotations = [get_annotations(path, preprocess.json_processing) for path in batch_item['json_path']]
         
         model.train()
         optimizer.zero_grad()
@@ -37,14 +37,14 @@ def train_step(model, criterion, optimizer, batch_item, training, json_process=N
             loss = criterion(output, label)
         loss.backward()
         optimizer.step()
-        score = accuracy_function(label, output)
+        score = metric_function(label, output, preprocess)
         return loss, score
     else:
         model.eval()
         with torch.no_grad():
             output = model(img, csv_feature, None)
             loss = criterion(output, label)
-        score = accuracy_function(label, output)
+        score = metric_function(label, output, preprocess)
         return loss, score
 
 if __name__=='__main__':
@@ -72,14 +72,14 @@ if __name__=='__main__':
     print('Data Loading...')
     
     if args.model_name=='base':
-        preprocessor = preprocess.Base_Processer(config)
+        preprocessor = preprocess.Base_Processor(config)
     elif args.model_name=='dense':
-        preprocessor = preprocess.Dense_Processer(config)
+        preprocessor = preprocess.Base_Processor2(config)
     elif args.model_name=='drj':
-        preprocessor = preprocess.JK_Processer(config)
+        preprocessor = preprocess.Base_Processor2(config)
         
-    if os.path.exists(f'{DATA.DATA_ROOT}/{args.model_name}_pre_dict.pkl'):
-        preprocessor.load_dictionary(f'{DATA.DATA_ROOT}/{args.model_name}_pre_dict.pkl')
+    if os.path.exists(f'{DATA.DATA_ROOT}/{preprocessor.dict_name}'):
+        preprocessor.load_dictionary(f'{DATA.DATA_ROOT}/{preprocessor.dict_name}')
     else:
         preprocessor.init_csv()
     
@@ -123,11 +123,14 @@ if __name__=='__main__':
     model = model.to(DEVICE)
     
     if args.model_name=='base':
-        criterion = nn.CrossEntropyLoss()
+        criterion = base_loss
+        metric_function = accuracy_function
     elif args.model_name=='dense':
-        criterion = nn.CrossEntropyLoss()
+        criterion = dense_loss
+        metric_function = seperated_metric
     elif args.model_name=='drj':
-        criterion = jk_loss
+        criterion = seperated_loss
+        metric_function = seperated_metric
     
     optimizer = torch.optim.Adam(model.parameters(), lr=0.00000001)
     scheduler = CosineAnnealingWarmUpRestarts(optimizer, T_0=15, T_mult=2, 
@@ -158,7 +161,8 @@ if __name__=='__main__':
         tqdm_dataset = tqdm(enumerate(train_dataloader))
         training = True
         for batch, batch_item in tqdm_dataset:
-            batch_loss, batch_acc = train_step(model, criterion, optimizer, batch_item, training, preprocessor.json_preprocessing)
+            batch_loss, batch_acc = train_step(model, criterion, optimizer, batch_item, training, 
+                                               preprocess=preprocessor, metric_function=metric_function)
             total_loss += batch_loss
             total_acc += batch_acc
             
@@ -177,7 +181,8 @@ if __name__=='__main__':
             tqdm_dataset = tqdm(enumerate(val_dataloader))
             training = False
             for batch, batch_item in tqdm_dataset:
-                batch_loss, batch_acc = train_step(model, criterion, optimizer, batch_item, training)
+                batch_loss, batch_acc = train_step(model, criterion, optimizer, batch_item, training, 
+                                                   preprocess=preprocessor, metric_function=metric_function)
                 total_val_loss += batch_loss
                 total_val_acc += batch_acc
                 
