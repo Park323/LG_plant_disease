@@ -54,6 +54,9 @@ class LAB_model(nn.Module):
         )
         
     def forward(self, img, seq, labels=None, train=True, **kwargs):
+        # save device
+        device = img.device
+        
         # densenet
         features = self.densenet.features(img)
         out = F.relu(features, inplace=True)
@@ -91,9 +94,10 @@ class LAB_model(nn.Module):
         g_feat = self.grow_map(g_feat).view(-1,1,54,54)
         
         # LAB
-        img = xyz2lab(rgb2xyz(img.permute(0,2,3,1).detach().numpy()))
+        img = xyz2lab(rgb2xyz(img.permute(0,2,3,1).cpu().detach().numpy()))
         img = torch.from_numpy(img).to(torch.float32).permute(0,3,1,2)
-        
+        img = img.to(device)
+
         # L
         L_feat = self.L_conv(img[:,:1,:,:])
         
