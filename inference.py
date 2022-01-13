@@ -15,7 +15,7 @@ from sklearn.metrics import f1_score
 from dataset import preprocess
 from dataset.dataset import CustomDataset
 from model.base_model import CNN2RNN
-from metric.metric import accuracy_function
+from utils.metric import accuracy_function
 
 import warnings
 warnings.simplefilter('ignore')
@@ -80,5 +80,5 @@ if __name__=='__main__':
     
     submission = pd.read_csv(f'{TEST.SAMPLE_PATH}')
     submission['label'] = preds
-    submission['label'] = [preprocessor.label_decoder[pred] for pred in preds]
+    submission['label'] = [preprocessor.label_decoder(pred) for pred in preds]
     submission.to_csv(f'{TEST.SUBMIT_PATH}', index=False)
