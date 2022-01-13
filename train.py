@@ -134,9 +134,9 @@ if __name__=='__main__':
         criterion = seperated_loss
         metric_function = seperated_metric
     
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.00000001)
+    optimizer = torch.optim.Adam(model.parameters(), lr=TRAIN.LR_MIN)
     scheduler = CosineAnnealingWarmUpRestarts(optimizer, T_0=15, T_mult=2, 
-                                              eta_max=TRAIN.LEARNING_RATE, T_up=3, gamma=0.5)
+                                              eta_max=TRAIN.LR_MAX, T_up=3, gamma=0.5)
     
     if os.path.exists(f'{TRAIN.SAVE_PATH}/optimizer_states.pt'):
         optimizer.load_state_dict(torch.load(f'{TRAIN.SAVE_PATH}/optimizer_states.pt'))

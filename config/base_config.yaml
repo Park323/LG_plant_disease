@@ -1,8 +1,10 @@
 ####   CONFIGURATION   ####
 TRAIN :
-  BATCH_SIZE    : 2
-  CLASS_N       : 32 ## len(label_encoder)
+  BATCH_SIZE    : 4
+  CLASS_N       : 111 ## len(label_encoder)
   LEARNING_RATE : 0.0001
+  LR_MIN        : 0.0000001
+  LR_MAX        : 0.0001
   EMBEDDING_DIM : 512
   NUM_FEATURES  : 9 ## len(csv_feature_dict)
   DROPOUT_RATE  : 0.1
