@@ -1,4 +1,3 @@
-from typing import OrderedDict
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -47,11 +46,12 @@ class LAB_model(nn.Module):
         self.area_map = nn.Linear(7, 54*54)
         self.grow_map = nn.Linear(9, 54*54)
         self.disease_map = nn.Linear(768, 21)
-        self.risk_map    = nn.Sequential(
-            nn.Linear(768, 256),
-            nn.ReLU(),
-            nn.Linear(256, 1)
-        )
+        self.risk_map = nn.Linear(768, 4)
+        # self.risk_map    = nn.Sequential(
+        #     nn.Linear(768, 256),
+        #     nn.ReLU(),
+        #     nn.Linear(256, 1)
+        # )
         
     def forward(self, img, seq, labels=None, train=True, **kwargs):
         # save device
@@ -69,21 +69,10 @@ class LAB_model(nn.Module):
         out_g = F.softmax(out[:,6+7:6+7+9])
         
         if train:
+            c_feat = labels[:,:6].detach()
+            a_feat = labels[:,31:38].detach()
+            g_feat = labels[:,38:47].detach()
             
-            epsilon = 0.1
-            smoothing = lambda x: (1-epsilon)*x + epsilon/len(x)
-            
-            c_feat = torch.zeros_like(out_c)
-            a_feat = torch.zeros_like(out_a)
-            g_feat = torch.zeros_like(out_g)
-            
-            for i in range(len(labels[0])):
-                c_feat[i, labels[0][i]]=1
-                a_feat[i, labels[3][i]]=1
-                g_feat[i, labels[4][i]]=1
-                c_feat[i] = smoothing(c_feat[i])
-                a_feat[i] = smoothing(a_feat[i])
-                g_feat[i] = smoothing(g_feat[i])
         else:
             c_feat = out_c.detach()
             a_feat = out_a.detach()
@@ -114,9 +103,11 @@ class LAB_model(nn.Module):
         out = inp.view(inp.shape[0], -1)
         
         out_d = F.softmax(self.disease_map(out))
-        out_r = F.relu(self.risk_map(out))
+        # out_r = F.relu(self.risk_map(out))
+        out_r = F.softmax(self.risk_map(out))
         
-        outputs = (out_c, out_d, out_r, out_a, out_g)
+        # outputs = (out_c, out_d, out_r, out_a, out_g)
+        outputs = torch.cat((out_c, out_d, out_r, out_a, out_g), dim=1)
         
         return outputs
     
