@@ -141,9 +141,11 @@ if __name__=='__main__':
         criterion = seperated_loss
         metric_function = seperated_metric
     
-    optimizer = torch.optim.Adam(model.parameters(), lr=TRAIN.LR_MIN)
-    scheduler = CosineAnnealingWarmUpRestarts(optimizer, T_0=15, T_mult=2, 
-                                              eta_max=TRAIN.LR_MAX, T_up=3, gamma=0.5)
+    optimizer = torch.optim.Adam(model.parameters(), lr=TRAIN.LEARNING_RATE)
+    # scheduler = CosineAnnealingWarmUpRestarts(optimizer, T_0=15, T_mult=2, 
+    #                                           eta_max=TRAIN.LR_MAX, T_up=3, gamma=0.5)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer=optimizer, factor=0.5,
+                                                           patience=3, mode='max')
     
     if args.from_epoch and os.path.exists(f'{TRAIN.SAVE_PATH}/optimizer_states.pt'):
         optimizer.load_state_dict(torch.load(f'{TRAIN.SAVE_PATH}/optimizer_states.pt'))
@@ -202,7 +204,8 @@ if __name__=='__main__':
                     'Mean Val F-1' : '{:06f}'.format(total_val_acc/(batch+1))
                 })
         
-        scheduler.step(epoch)
+        # scheduler.step(epoch)
+        scheduler.step(total_val_acc/(batch+1))
         
         if len(loss_plot)==epoch:
             loss_plot.append(total_loss.item()/(batch+1))
