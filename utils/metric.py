@@ -46,18 +46,15 @@ def lab_cat_metric(real, pred, preprocess, inference=False):
     p_crop, p_area, p_grow = pred[:,:6], pred[:,6:13], pred[:,13:22]
     p_crop = argmax(p_crop, dim=1).tolist()
     p_area = argmax(p_area, dim=1).tolist()
-    p_grow = argmax(p_grow, dim=1).tolist()
     
     r_crop, r_area, r_grow = real[:,:6], real[:,6:13], real[:,13:22]
     r_crop = argmax(r_crop, dim=1).tolist()
     r_area = argmax(r_area, dim=1).tolist()
-    r_grow = argmax(r_grow, dim=1).tolist()
     
     score_c = f1_score(r_crop, p_crop, average='macro')
     score_a = f1_score(r_area, p_area, average='macro')
-    score_g = f1_score(r_grow, p_grow, average='macro')
     
-    score = ( score_c + score_a + score_g ) / 3
+    score = ( score_c + score_a ) / 2
     
     return score
 

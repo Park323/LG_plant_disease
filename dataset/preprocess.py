@@ -179,16 +179,17 @@ class LAB_Processor(Processor):
         
     def label_encoder(self, label, *args, **kwargs):
         area = str(kwargs['dic']['annotations']['area'])
-        grow = str(kwargs['dic']['annotations']['grow'])
+        # grow = str(kwargs['dic']['annotations']['grow'])
         
         crop, disease, risk = label.split('_')
         
-        one_hot_label = torch.zeros(47, dtype=torch.float32)
+        # one_hot_label = torch.zeros(47, dtype=torch.float32)
+        one_hot_label = torch.zeros(38, dtype=torch.float32)
         one_hot_label[self.crop_dict[crop]] = 1.
-        one_hot_label[self.disease_dict[disease]] = 1.
-        one_hot_label[self.risk_dict[risk]] = 1.
-        one_hot_label[self.area_dict[area]] = 1.
-        one_hot_label[self.grow_dict[grow]] = 1.
+        one_hot_label[6+self.disease_dict[disease]] = 1.
+        one_hot_label[6+21+self.risk_dict[risk]] = 1.
+        one_hot_label[6+21+4+self.area_dict[area]] = 1.
+        # one_hot_label[6+21+4+7+self.grow_dict[grow]] = 1.
             
         epsilon = 0.1
         smoothing = lambda x: (1-epsilon)*x + epsilon/len(x)

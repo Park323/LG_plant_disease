@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torchvision.models as models
+from torchvision.transforms import transforms
 import numpy as np
 
 class LAB_model(nn.Module):
@@ -9,6 +11,7 @@ class LAB_model(nn.Module):
         self.classifier = torch.load(f"{config.ClASSIFIER}")
         for param in self.classifier.parameters():
             param.requires_grad = False
+        # self.classifier = CatClassifier(config)
         self.labfeature = LabExtractor(config)
         self.conv = nn.Sequential(
             SimpleConv2d(67,80, kernel_size=3, padding=1, bias=False),
@@ -28,7 +31,6 @@ class LAB_model(nn.Module):
         )
         self.crop_map = nn.Linear(6, 54*54)
         self.area_map = nn.Linear(7, 54*54)
-        self.grow_map = nn.Linear(9, 54*54)
         self.disease_map = nn.Linear(768, 21)
         self.risk_map = nn.Linear(768, 4)
         
@@ -36,15 +38,14 @@ class LAB_model(nn.Module):
         if train:
             features = torch.cat((labels[:6],labels[31:]),dim=1).detach()
         else:
-            features = self.classifier(img).detach()
-        crop, area, grow = features[:,:6], features[:,6:13], features[:,13:22]    
+            features = self.classifier(img).detach() 
+        crop, area = features[:,:6], features[:,6:13]
         c_map = self.crop_map(crop).view(-1,1,54,54)
         a_map = self.area_map(area).view(-1,1,54,54)
-        g_map = self.grow_map(grow).view(-1,1,54,54)
         
         LAB = self.labfeature(img)
         
-        inp = torch.cat((LAB, c_map, a_map, g_map), dim=1) #(BATCH_SIZE, 67, 54, 54)
+        inp = torch.cat((LAB, c_map, a_map), dim=1) #(BATCH_SIZE, 66, 54, 54)
         
         inp = self.conv(inp)
         inp = self.Inceptionx3A(inp)
@@ -56,35 +57,48 @@ class LAB_model(nn.Module):
         out_d = F.softmax(self.disease_map(out))
         out_r = F.softmax(self.risk_map(out))
         
-        outputs = torch.cat((crop, out_d, out_r, area, grow), dim=1)
+        outputs = torch.cat((crop, out_d, out_r, area), dim=1)
         
         return outputs
     
 class CatClassifier(nn.Module):
     def __init__(self, config):
         super(CatClassifier,self).__init__()
-        self.densenet = torch.hub.load('pytorch/vision:v0.10.0', 'densenet121', pretrained=True)
-        for param in self.densenet.parameters():
-            param.requires_grad = False
-        self.conv     = nn.Sequential(
-            SimpleConv2d(1024, 512, kernel_size=3, padding=1, bias=False),
-            SimpleConv2d(512, 128, kernel_size=3, padding=1, bias=False),
-            SimpleConv2d(128, 22, kernel_size=3, padding=1, bias=False),
-        )
+        # self.densenet = torch.hub.load('pytorch/vision:v0.10.0', 'densenet121', pretrained=True)
+        # for param in self.densenet.parameters():
+        #     param.requires_grad = False
+        # self.conv     = nn.Sequential(
+        #     SimpleConv2d(1024, 512, kernel_size=3, padding=1, bias=False),
+        #     SimpleConv2d(512, 128, kernel_size=3, padding=1, bias=False),
+        #     SimpleConv2d(128, 22, kernel_size=3, padding=1, bias=False),
+        # )
+        self.inception = models.inception_v3(pretrained=True, aux_logits=False)
+        self.inception.fc = nn.Linear(self.inception.fc.in_features, 512)
+        for name, param in self.inception.named_parameters():
+            if 'fc.weight' in name or 'fc.bias' in name:
+                param.requires_grad = True
+            else:
+                param.requires_grad = False
+        self.crop_fc  = nn.Linear(512, 6)
+        self.area_fc  = nn.Linear(512, 7)
         
     def forward(self, img, seq, labels=None, train=True, **kwargs):
-        # densenet
-        features = self.densenet.features(img)
-        out = F.relu(features, inplace=True)
+        # # densenet
+        # features = self.densenet.features(img)
+        # out = F.relu(features, inplace=True)
         
-        out = self.conv(out)
-        out = F.adaptive_avg_pool2d(out, (1, 1))
-        out = out.view(out.shape[0], -1)
-        out_c = F.softmax(out[:,:6])
-        out_a = F.softmax(out[:,6:6+7])
-        out_g = F.softmax(out[:,6+7:6+7+9])
+        # out = self.conv(out)
+        # out = F.adaptive_avg_pool2d(out, (1, 1))
+        # out = out.view(out.shape[0], -1)
+        # out_c = F.softmax(out[:,:6])
+        # out_a = F.softmax(out[:,6:6+7])
         
-        outputs = torch.cat((out_c, out_a, out_g), dim=1)
+        img = transforms.Resize(256)(img)
+        feat = self.inception(img)
+        out_c = F.softmax(self.crop_fc(feat))
+        out_a = F.softmax(self.area_fc(feat))
+        
+        outputs = torch.cat((out_c, out_a), dim=1)
         
         return outputs
     
