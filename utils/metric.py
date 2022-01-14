@@ -22,22 +22,16 @@ def seperated_metric(real, pred, preprocess, inference=False):
     return score
 
 def lab_metric(real, pred, preprocess, inference=False):
-    # p_crop, p_disease, p_risk, _, _ = pred
     p_crop, p_disease, p_risk = pred[:,:6], pred[:,6:27], pred[:,27:31]
     p_crop = argmax(p_crop, dim=1).tolist()
     p_disease = argmax(p_disease, dim=1).tolist()
     p_risk = argmax(p_risk, dim=1).tolist()
     pred = [(preds[0], preds[1], preds[2]) for preds in list(zip(p_crop, p_disease, p_risk))]
-    # p_risk = [round(x.item()) for x in p_risk]
-    # pred = [(preds[0], preds[1], max(0,min(preds[2],3))) for preds in list(zip(p_crop, p_disease, p_risk))]
+    
     pred = [preprocess.label_decoder(x) for x in pred]
     if inference: return pred
     pred = [preprocess.label_dict[x] for x in pred]
     
-    # r_crop, r_disease, r_risk, _, _ = real
-    # r_crop = r_crop.tolist()
-    # r_disease = r_disease.tolist()
-    # r_risk = r_risk.tolist()
     r_crop, r_disease, r_risk = real[:,:6], real[:,6:27], real[:,27:31]
     r_crop = argmax(r_crop, dim=1).tolist()
     r_disease = argmax(r_disease, dim=1).tolist()
@@ -46,6 +40,25 @@ def lab_metric(real, pred, preprocess, inference=False):
     real = [preprocess.label_dict[x] for x in real]
     
     score = f1_score(real, pred, average='macro')
+    return score
+
+def lab_cat_metric(real, pred, preprocess, inference=False):
+    p_crop, p_area, p_grow = pred[:,:6], pred[:,6:13], pred[:,13:22]
+    p_crop = argmax(p_crop, dim=1).tolist()
+    p_area = argmax(p_area, dim=1).tolist()
+    p_grow = argmax(p_grow, dim=1).tolist()
+    
+    r_crop, r_area, r_grow = real[:,:6], real[:,6:13], real[:,13:22]
+    r_crop = argmax(r_crop, dim=1).tolist()
+    r_area = argmax(r_area, dim=1).tolist()
+    r_grow = argmax(r_grow, dim=1).tolist()
+    
+    score_c = f1_score(r_crop, p_crop, average='macro')
+    score_a = f1_score(r_area, p_area, average='macro')
+    score_g = f1_score(r_grow, p_grow, average='macro')
+    
+    score = ( score_c + score_a + score_g ) / 3
+    
     return score
 
 def base_loss(outputs, labels):
@@ -61,9 +74,15 @@ def seperated_loss(outputs, labels, l1=0.3, l2=0.3, l3=0.3):
     
     return loss
 
-def lab_loss(outputs, labels):
+def multi_label_loss(outputs, labels):
     MSL = MultiLabelSoftMarginLoss()
-    
     loss = MSL(outputs, labels)
-    
     return loss
+
+def lab_dr_loss(outputs, labels):
+    dr_pred = cat((outputs[:,6:27],outputs[:,27:31]), dim=1)
+    dr_label= cat((labels[:,6:27],labels[:,27:31]), dim=1)
+    return multi_label_loss(dr_pred, dr_label)
+
+def lab_cat_loss(outputs, labels):
+    return multi_label_loss(outputs, cat((labels[:,:6],labels[:,31:]), dim=1))

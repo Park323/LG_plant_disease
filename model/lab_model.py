@@ -6,26 +6,11 @@ import numpy as np
 class LAB_model(nn.Module):
     def __init__(self, config):
         super(LAB_model,self).__init__()
-        self.densenet = torch.hub.load('pytorch/vision:v0.10.0', 'densenet121', pretrained=True)
-        
-        self.conv     = nn.Sequential(
-            SimpleConv2d(1024, 512, kernel_size=3, padding=1, bias=False),
-            SimpleConv2d(512, 128, kernel_size=3, padding=1, bias=False),
-            SimpleConv2d(128, 22, kernel_size=3, padding=1, bias=False),
-        )
-        self.L_conv = nn.Sequential(
-            SimpleConv2d(1,6, kernel_size=3, stride=2, bias=False),
-            SimpleConv2d(6,6, kernel_size=3, bias=False),
-            SimpleConv2d(6,13, kernel_size=3, padding=1, bias=False),
-            nn.MaxPool2d(2,2)
-        )
-        self.AB_conv = nn.Sequential(
-            SimpleConv2d(2,26, kernel_size=3, stride=2, bias=False),
-            SimpleConv2d(26,26, kernel_size=3, bias=False),
-            SimpleConv2d(26,51, kernel_size=3, padding=1, bias=False),
-            nn.MaxPool2d(2,2)
-        )
-        self.LABCAG_conv = nn.Sequential(
+        self.classifier = torch.load(f"{config.ClASSIFIER}")
+        for param in self.classifier.parameters():
+            param.requires_grad = False
+        self.labfeature = LabExtractor(config)
+        self.conv = nn.Sequential(
             SimpleConv2d(67,80, kernel_size=3, padding=1, bias=False),
             SimpleConv2d(80,192, kernel_size=3, bias=False),
             nn.MaxPool2d(3,2)
@@ -41,22 +26,53 @@ class LAB_model(nn.Module):
             InceptionCellB(192*4, 192),
             InceptionCellB(192*4, 192)
         )
-        
         self.crop_map = nn.Linear(6, 54*54)
         self.area_map = nn.Linear(7, 54*54)
         self.grow_map = nn.Linear(9, 54*54)
         self.disease_map = nn.Linear(768, 21)
         self.risk_map = nn.Linear(768, 4)
-        # self.risk_map    = nn.Sequential(
-        #     nn.Linear(768, 256),
-        #     nn.ReLU(),
-        #     nn.Linear(256, 1)
-        # )
         
     def forward(self, img, seq, labels=None, train=True, **kwargs):
-        # save device
-        device = img.device
+        if train:
+            features = torch.cat((labels[:6],labels[31:]),dim=1).detach()
+        else:
+            features = self.classifier(img).detach()
+        crop, area, grow = features[:,:6], features[:,6:13], features[:,13:22]    
+        c_map = self.crop_map(crop).view(-1,1,54,54)
+        a_map = self.area_map(area).view(-1,1,54,54)
+        g_map = self.grow_map(grow).view(-1,1,54,54)
         
+        LAB = self.labfeature(img)
+        
+        inp = torch.cat((LAB, c_map, a_map, g_map), dim=1) #(BATCH_SIZE, 67, 54, 54)
+        
+        inp = self.conv(inp)
+        inp = self.Inceptionx3A(inp)
+        inp = self.Inceptionx3B(inp)
+        
+        inp = F.adaptive_avg_pool2d(inp, (1,1))
+        out = inp.view(inp.shape[0], -1)
+        
+        out_d = F.softmax(self.disease_map(out))
+        out_r = F.softmax(self.risk_map(out))
+        
+        outputs = torch.cat((crop, out_d, out_r, area, grow), dim=1)
+        
+        return outputs
+    
+class CatClassifier(nn.Module):
+    def __init__(self, config):
+        super(CatClassifier,self).__init__()
+        self.densenet = torch.hub.load('pytorch/vision:v0.10.0', 'densenet121', pretrained=True)
+        for param in self.densenet.parameters():
+            param.requires_grad = False
+        self.conv     = nn.Sequential(
+            SimpleConv2d(1024, 512, kernel_size=3, padding=1, bias=False),
+            SimpleConv2d(512, 128, kernel_size=3, padding=1, bias=False),
+            SimpleConv2d(128, 22, kernel_size=3, padding=1, bias=False),
+        )
+        
+    def forward(self, img, seq, labels=None, train=True, **kwargs):
         # densenet
         features = self.densenet.features(img)
         out = F.relu(features, inplace=True)
@@ -68,48 +84,43 @@ class LAB_model(nn.Module):
         out_a = F.softmax(out[:,6:6+7])
         out_g = F.softmax(out[:,6+7:6+7+9])
         
-        if train:
-            c_feat = labels[:,:6].detach()
-            a_feat = labels[:,31:38].detach()
-            g_feat = labels[:,38:47].detach()
-            
-        else:
-            c_feat = out_c.detach()
-            a_feat = out_a.detach()
-            g_feat = out_g.detach()
+        outputs = torch.cat((out_c, out_a, out_g), dim=1)
         
-        c_feat = self.crop_map(c_feat).view(-1,1,54,54)
-        a_feat = self.area_map(a_feat).view(-1,1,54,54)
-        g_feat = self.grow_map(g_feat).view(-1,1,54,54)
+        return outputs
+    
+class LabExtractor(nn.Module):
+    def __init__(self, config):
+        super(LabExtractor,self).__init__()
+        self.L_conv = nn.Sequential(
+            SimpleConv2d(1,6, kernel_size=3, stride=2, bias=False),
+            SimpleConv2d(6,6, kernel_size=3, bias=False),
+            SimpleConv2d(6,13, kernel_size=3, padding=1, bias=False),
+            nn.MaxPool2d(2,2)
+        )
+        self.AB_conv = nn.Sequential(
+            SimpleConv2d(2,26, kernel_size=3, stride=2, bias=False),
+            SimpleConv2d(26,26, kernel_size=3, bias=False),
+            SimpleConv2d(26,51, kernel_size=3, padding=1, bias=False),
+            nn.MaxPool2d(2,2)
+        )
+        
+    def forward(self, img, seq, labels=None, train=True, **kwargs):
+        # Save device
+        device = img.device
         
         # LAB
         img = xyz2lab(rgb2xyz(img.permute(0,2,3,1).cpu().detach().numpy()))
-        img = torch.from_numpy(img).to(torch.float32).permute(0,3,1,2)
+        img = torch.from_numpy(img).to(torch.float32).permute(0,3,1,2).contiguous()
         img = img.to(device)
 
         # L
         L_feat = self.L_conv(img[:,:1,:,:])
-        
         # AB
         AB_feat = self.AB_conv(img[:,1:,:,:])
         
-        inp = torch.cat((L_feat, AB_feat, c_feat, a_feat, g_feat), dim=1) #(BATCH_SIZE, 67, 54, 54)
+        outputs = torch.cat((L_feat, AB_feat), dim=1)
         
-        inp = self.LABCAG_conv(inp)
-        inp = self.Inceptionx3A(inp)
-        inp = self.Inceptionx3B(inp)
-        
-        inp = F.adaptive_avg_pool2d(inp, (1,1))
-        out = inp.view(inp.shape[0], -1)
-        
-        out_d = F.softmax(self.disease_map(out))
-        # out_r = F.relu(self.risk_map(out))
-        out_r = F.softmax(self.risk_map(out))
-        
-        # outputs = (out_c, out_d, out_r, out_a, out_g)
-        outputs = torch.cat((out_c, out_d, out_r, out_a, out_g), dim=1)
-        
-        return outputs
+        return outputs #(B, 3, H, W)
     
 class InceptionCellA(nn.Module):
     def __init__(self, input_dim, output_dim, **kwargs):

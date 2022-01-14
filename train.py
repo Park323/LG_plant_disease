@@ -14,7 +14,7 @@ from dataset import preprocess
 from dataset.dataset import CustomDataset, get_annotations
 from model.base_model import CNN2RNN
 from model.jk_model import DrJeonko
-from model.lab_model import LAB_model
+from model.lab_model import CatClassifier, LAB_model
 from utils.scheduler import CosineAnnealingWarmUpRestarts
 from utils.metric import *
 
@@ -77,6 +77,8 @@ if __name__=='__main__':
         preprocessor = preprocess.Base_Processor(config)
     elif args.model_name=='lab':
         preprocessor = preprocess.LAB_Processor(config)
+    elif args.model_name=='lab_cat':
+        preprocessor = preprocess.LAB_Processor(config)
     elif args.model_name=='drj':
         preprocessor = preprocess.Base_Processor2(config)
         
@@ -119,6 +121,8 @@ if __name__=='__main__':
                             rate=TRAIN.DROPOUT_RATE)
         elif args.model_name=='lab':
             model = LAB_model(TRAIN)
+        elif args.model_name=='lab_cat':
+            model = CatClassifier(TRAIN)
         elif args.model_name=='drj':
             model = DrJeonko(TRAIN)
 
@@ -128,8 +132,11 @@ if __name__=='__main__':
         criterion = base_loss
         metric_function = accuracy_function
     elif args.model_name=='lab':
-        criterion = lab_loss
+        criterion = lab_dr_loss
         metric_function = lab_metric
+    elif args.model_name=='lab_cat':
+        criterion = lab_cat_loss
+        metric_function = lab_cat_metric
     elif args.model_name=='drj':
         criterion = seperated_loss
         metric_function = seperated_metric
@@ -138,7 +145,7 @@ if __name__=='__main__':
     scheduler = CosineAnnealingWarmUpRestarts(optimizer, T_0=15, T_mult=2, 
                                               eta_max=TRAIN.LR_MAX, T_up=3, gamma=0.5)
     
-    if os.path.exists(f'{TRAIN.SAVE_PATH}/optimizer_states.pt'):
+    if args.from_epoch and os.path.exists(f'{TRAIN.SAVE_PATH}/optimizer_states.pt'):
         optimizer.load_state_dict(torch.load(f'{TRAIN.SAVE_PATH}/optimizer_states.pt'))
         scheduler.load_state_dict(torch.load(f'{TRAIN.SAVE_PATH}/scheduler_states.pt'))
     #############################################################################

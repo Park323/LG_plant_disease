@@ -6,5 +6,4 @@ TRAIN :
   LR_MAX        : 0.0001
   EPOCHS        : 5
   VISION_PRETRAIN : True
-  SAVE_PATH     : output/lab0
-  CLASSIFIER    : model/crop_classifier.pt
+  SAVE_PATH     : output/clf
