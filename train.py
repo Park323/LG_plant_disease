@@ -221,7 +221,7 @@ if __name__=='__main__':
         if total_val_loss > max(val_metric_plot):
             torch.save(model, f'{TRAIN.SAVE_PATH}/model_best.pt')
         
-        if (epoch+1) % config.TRAIN.SAVE_PERIOD==0:
+        if ((epoch+1) % config.TRAIN.SAVE_PERIOD == 0) or (epoch+1 == TRAIN.epochs):
             torch.save(model, f'{TRAIN.SAVE_PATH}/model_{epoch+1}.pt')
             torch.save({'train_loss':loss_plot, 'val_loss':val_loss_plot,
                         'train_f1':metric_plot, 'val_f1':val_metric_plot},
