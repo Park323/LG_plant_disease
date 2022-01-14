@@ -63,7 +63,7 @@ class LAB_model(nn.Module):
         
         out = self.conv(out)
         out = F.adaptive_avg_pool2d(out, (1, 1))
-        out = torch.squeeze(out)
+        out = out.view(out.shape[0], -1)
         out_c = F.softmax(out[:,:6])
         out_a = F.softmax(out[:,6:6+7])
         out_g = F.softmax(out[:,6+7:6+7+9])
@@ -117,9 +117,6 @@ class LAB_model(nn.Module):
         out_r = F.relu(self.risk_map(out))
         
         outputs = (out_c, out_d, out_r, out_a, out_g)
-        
-        if img.shape[0]==1:
-            outputs = (out.unsqueeze(0) for out in outputs)
         
         return outputs
     
