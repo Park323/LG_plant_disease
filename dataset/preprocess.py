@@ -22,7 +22,8 @@ disease_dict2= {'00':'정상',
                 'a9':'파프리카흰가루병', 'a10':'파프리카잘록병', 'a11':'시설포도탄저병', 'a12':'시설포도노균병',
                 'b1':'냉해피해', 'b2':'열과', 'b3':'칼슘결핍', 'b4':'일소피해', 'b5':'축과병', 
                 'b6':'다량원소결핍 (N)', 'b7':'다량원소결핍 (P)', 'b8':'다량원소결핍 (K)'}
-risk_dict = {'0':'정상','1':'초기','2':'중기','3':'말기'}
+risk_dict = {'1':'초기','2':'중기','3':'말기'}
+risk_dict2 = {'0':'정상','1':'초기','2':'중기','3':'말기'}
 
 label_description = {}
 for key, value in disease_dict.items():
@@ -66,16 +67,19 @@ class Processor():
     def initialize(self):
         pass
 
-    def img_processing(self, img):
+    def img_processing(self, img, **kwargs):
+        # if kwargs['labels']:
+        #     x, h, y, w = list(map(int,kwargs['labels']['annotations']['bbox'][0].values()))
+        #     img = img[x:x+h,y:y+w]
         img = cv2.resize(img, dsize=(224, 224), interpolation=cv2.INTER_AREA)
         img = img.astype(np.float32)/255
         img = np.transpose(img, (2,0,1))
         return img
 
-    def json_processing(self, json_path):
-        return json_path
+    def json_processing(self, labels, **kwargs):
+        return labels
         
-    def csv_processing(self, df):
+    def csv_processing(self, df, **kwargs):
         return np.array([[0]])
     
     def save_dictionary(self):
@@ -89,7 +93,7 @@ class Processor():
 
 class Base_Processor(Processor):
     '''
-    This Processor Generates Labels with string with proper pair (CLASS_N=146)
+    This Processor Generates Labels with string with proper pair (CLASS_N=111)
     '''
     def __init__(self, config):
         super(Base_Processor, self).__init__(config)
@@ -99,7 +103,12 @@ class Base_Processor(Processor):
     
     def label_decoder(self, label, *args, **kwargs):
         return {val:key for key, val in self.label_dict.items()}[label]
+
+class TrimmedImage_Processor(Base_Processor):
+    def img_processing(self, img):
         
+        return super().img_processing(img)
+
 class Basic_CSV_Processor(Base_Processor):
     '''
     This Processor returns csv through min-max scaling

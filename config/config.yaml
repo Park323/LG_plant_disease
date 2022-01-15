@@ -9,9 +9,8 @@ DATA :
   VALID_RATE : 0.2
 
 TRAIN :
-  MAX_LEN       : 64 ## 24*6
   NUM_WORKER    : 4
-  SAVE_PERIOD   : 10
+  SAVE_PERIOD   : 20
 
 TEST :
   BATCH_SIZE    : 64

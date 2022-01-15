@@ -33,8 +33,6 @@ def train_step(
     label = label.to(DEVICE) if isinstance(label, torch.Tensor) else [item.to(DEVICE) for item in label]
     
     if training is True:
-        # annotations = [get_annotations(path, preprocess.json_processing) for path in batch_item['json_path']]
-        
         model.train()
         optimizer.zero_grad()
         with torch.cuda.amp.autocast():
@@ -98,7 +96,7 @@ def get_metrics(model_name):
 
 def get_model(config, model_name=None, **kwargs):
     if model_name=='base':
-        return CNN2RNN(max_len=kwargs['config2'].TRAIN.MAX_LEN, embedding_dim=config.EMBEDDING_DIM, \
+        return CNN2RNN(max_len=config.MAX_LEN, embedding_dim=config.EMBEDDING_DIM, \
                         num_features=config.NUM_FEATURES, class_n=config.CLASS_N, \
                         rate=config.DROPOUT_RATE)
     elif model_name=='lab':
@@ -118,7 +116,7 @@ def get_scheduler(optimizer, sch_name='none', lr=0):
                                                            patience=3, mode='max')
     elif sch_name == 'cosine':
         return CosineAnnealingWarmUpRestarts(optimizer, T_0=15, T_mult=2, 
-                                                  eta_max=lr, T_up=3, gamma=0.5)
+                                                  eta_max=lr, T_up=3, gamma=1)
 
 def scheduler_step(scheduler, sch_name='none', epoch=None, value=None):
     if sch_name == 'none':
@@ -187,7 +185,7 @@ def main(args):
         preds, answer = predict(TEST, model, test_dataloader)
         
         submission = pd.read_csv(f'{TEST.SAMPLE_PATH}')
-        submission['label'] = metric_function(None, preds, inference=True)
+        submission['label'] = metric_function(None, preds, inference=True, preprocess=preprocessor)
         submission.to_csv(f'{TRAIN.SAVE_PATH}/submission.csv', index=False)
         
         return None
@@ -200,7 +198,7 @@ def main(args):
         model = torch.load(TRAIN.SAVE_PATH + '/' + f'model_{args.from_epoch}.pt')
     else:
         # Argument에 따라 model 변경
-        model = get_model(TRAIN, model_name=args.model_name, config2=config)
+        model = get_model(TRAIN, model_name=args.model_name)
 
     model = model.to(DEVICE)
     optimizer = torch.optim.Adam(model.parameters(), lr=TRAIN.LEARNING_RATE)
@@ -292,10 +290,10 @@ def main(args):
             dp.append(directory)
         
         
-        if total_val_acc > max(val_metric_plot):
+        if total_val_acc/(val_batch+1) > max(val_metric_plot):
             torch.save(model, f'{TRAIN.SAVE_PATH}/model_best_f1.pt')
         
-        if total_val_loss < min(val_loss_plot):
+        if total_val_loss/(val_batch+1) < min(val_loss_plot):
             torch.save(model, f'{TRAIN.SAVE_PATH}/model_min_loss.pt')
         
         if ((epoch+1) % config.TRAIN.SAVE_PERIOD == 0) or (epoch+1 == TRAIN.EPOCHS):
@@ -308,7 +306,6 @@ def main(args):
             torch.save(optimizer.state_dict(),
                         f'{TRAIN.SAVE_PATH}/optimizer_states.pt')
             
-
 if __name__=='__main__':
     
     # Load Config
