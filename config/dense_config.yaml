@@ -1,0 +1,9 @@
+####   CONFIGURATION   ####
+TRAIN :
+  BATCH_SIZE    : 256
+  LEARNING_RATE : 0.0001
+  LR_MIN        : 0.0000001
+  LR_MAX        : 0.0001
+  EPOCHS        : 5
+  VISION_PRETRAIN : True
+  SAVE_PATH     : output/dense

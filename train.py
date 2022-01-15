@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import cv2
+from torchvision.models.densenet import DenseNet
 from tqdm import tqdm
 from glob import glob
 import os, argparse
@@ -79,6 +80,8 @@ if __name__=='__main__':
         preprocessor = preprocess.LAB_Processor(config)
     elif args.model_name=='lab_cat':
         preprocessor = preprocess.LAB_Processor(config)
+    elif args.model_name=='dense':
+        preprocessor = preprocess.Base_Processor(config)
     elif args.model_name=='drj':
         preprocessor = preprocess.Base_Processor2(config)
         
@@ -123,6 +126,8 @@ if __name__=='__main__':
             model = LAB_model(TRAIN)
         elif args.model_name=='lab_cat':
             model = CatClassifier(TRAIN)
+        elif args.model_name=='dense':
+            model = DenseNet(TRAIN)
         elif args.model_name=='drj':
             model = DrJeonko(TRAIN)
 
@@ -137,6 +142,9 @@ if __name__=='__main__':
     elif args.model_name=='lab_cat':
         criterion = lab_cat_loss
         metric_function = lab_cat_metric
+    elif args.model_name=='dense':
+        criterion = base_loss
+        metric_function = accuracy_function
     elif args.model_name=='drj':
         criterion = seperated_loss
         metric_function = seperated_metric

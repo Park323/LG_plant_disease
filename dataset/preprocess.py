@@ -191,12 +191,12 @@ class LAB_Processor(Processor):
         one_hot_label[6+21+4+self.area_dict[area]] = 1.
         # one_hot_label[6+21+4+7+self.grow_dict[grow]] = 1.
             
-        epsilon = 0.1
-        smoothing = lambda x: (1-epsilon)*x + epsilon/len(x)
+        # epsilon = 0.1
+        # smoothing = lambda x: (1-epsilon)*x + epsilon/len(x)
         
-        smoothed_one_hot_label = smoothing(one_hot_label)
+        # one_hot_label = smoothing(one_hot_label)
         
-        return smoothed_one_hot_label
+        return one_hot_label
     
     def label_decoder(self, label, *args, **kwargs):
         crop = {val:key for key, val in self.crop_dict.items()}[label[0]]
