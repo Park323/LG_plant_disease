@@ -8,7 +8,7 @@ import numpy as np
 class LAB_model(nn.Module):
     def __init__(self, config):
         super(LAB_model,self).__init__()
-        self.classifier = torch.load(f"{config.ClASSIFIER}")
+        self.classifier = torch.load(f"{config.CLASSIFIER}")
         for param in self.classifier.parameters():
             param.requires_grad = False
         # self.classifier = CatClassifier(config)
@@ -118,7 +118,7 @@ class LabExtractor(nn.Module):
             nn.MaxPool2d(2,2)
         )
         
-    def forward(self, img, seq, labels=None, train=True, **kwargs):
+    def forward(self, img, **kwargs):
         # Save device
         device = img.device
         
