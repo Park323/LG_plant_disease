@@ -103,7 +103,7 @@ if __name__=='__main__':
     print('Data Loading...')
     
     if args.model_name=='base':
-        preprocessor = preprocess.Base_Processor(config)
+        preprocessor = preprocess.Basic_CSV_Processor(config)
     elif args.model_name=='lab':
         preprocessor = preprocess.Concat_processor(config)
     elif args.model_name=='lab_crop':
@@ -111,7 +111,7 @@ if __name__=='__main__':
     elif args.model_name=='dense':
         preprocessor = preprocess.Base_Processor(config)
     elif args.model_name=='drj':
-        preprocessor = preprocess.Base_Processor2(config)
+        preprocessor = preprocess.Base_Processor(config)
         
     if os.path.exists(f'{DATA.DATA_ROOT}/{preprocessor.dict_name}'):
         preprocessor.load_dictionary(f'{DATA.DATA_ROOT}/{preprocessor.dict_name}')

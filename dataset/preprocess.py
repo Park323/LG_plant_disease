@@ -44,7 +44,7 @@ class Processor():
     def __init__(self, config):
         self.config = config
         
-        self.dict_name = None
+        self.dict_name = 'none'
         self.feature_dict = {}
         
         self.area_dict = {key:idx for idx, key in enumerate(area_dict)}
@@ -91,10 +91,8 @@ class Base_Processor(Processor):
     '''
     This Processor Generates Labels with string with proper pair (CLASS_N=146)
     '''
-    
     def __init__(self, config):
         super(Base_Processor, self).__init__(config)
-        self.dict_name = 'csv_feature_dict.pkl'
         
     def label_encoder(self, label, *args, **kwargs):
         return torch.tensor(self.label_dict[label], dtype=torch.long)
@@ -102,7 +100,15 @@ class Base_Processor(Processor):
     def label_decoder(self, label, *args, **kwargs):
         return {val:key for key, val in self.label_dict.items()}[label]
         
-    def initialize(self):
+class Basic_CSV_Processor(Base_Processor):
+    '''
+    This Processor returns csv through min-max scaling
+    '''
+    def __init__(self, config):
+        super(Basic_CSV_Processor, self).__init__(config)
+        self.dict_name = 'csv_feature_dict.pkl'
+      
+    def initialize(self):  
         config = self.config
 
         # 분석에 사용할 feature 선택
@@ -129,15 +135,6 @@ class Base_Processor(Processor):
         self.feature_dict['csv_feature_dict'] = {csv_features[i]:[min_arr[i], max_arr[i]] for i in range(len(csv_features))}
         
         self.save_dictionary()
-
-    def img_processing(self, img):
-        img = cv2.resize(img, dsize=(224, 224), interpolation=cv2.INTER_AREA)
-        img = img.astype(np.float32)/255
-        img = np.transpose(img, (2,0,1))
-        return img
-
-    def json_processing(self, json_path):
-        return json_path
         
     def csv_processing(self, df):
         config=self.config
@@ -158,27 +155,6 @@ class Base_Processor(Processor):
         csv_feature = pad.T
         
         return csv_feature
-        
-class Base_Processor2(Base_Processor):
-    
-    def __init__(self, config):
-        super(Base_Processor2, self).__init__(config)
-        self.dict_name = 'csv_feature_dict.pkl'
-        
-    def label_encoder(self, label, *args, **kwargs):
-        crop, disease, risk = label.split('_')
-        return (torch.tensor(self.crop_dict[crop], dtype=torch.long),
-                torch.tensor(self.disease_dict[disease], dtype=torch.long),
-                torch.tensor(self.risk_dict[risk], dtype=torch.long),)
-    
-    def label_decoder(self, label, *args, **kwargs):
-        crop = {val:key for key, val in self.crop_dict.items()}[label[0]]
-        disease = {val:key for key, val in self.disease_dict.items()}[label[1]]
-        risk = {val:key for key, val in self.risk_dict.items()}[label[2]]
-        
-        if disease not in disease_dict[crop].keys() or ((disease=='00') != (risk=='0')):
-            return f'{crop}_00_0'
-        return f'{crop}_{disease}_{risk}'
 
 class Concat_Processor(Processor):
     '''
