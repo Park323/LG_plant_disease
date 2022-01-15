@@ -22,7 +22,11 @@ warnings.simplefilter('ignore')
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-def train_step(model, criterion, optimizer, batch_item, training, preprocess=None, metric_function=accuracy_function):
+def train_step(
+    model, criterion, optimizer, 
+    batch_item, training, 
+    preprocess=None, metric_function=accuracy_function, **kwargs):
+    
     img = batch_item['img'].to(DEVICE)
     csv_feature = batch_item['csv_feature'].to(DEVICE)
     label = batch_item['label']
@@ -35,7 +39,7 @@ def train_step(model, criterion, optimizer, batch_item, training, preprocess=Non
         optimizer.zero_grad()
         with torch.cuda.amp.autocast():
             output = model(img, csv_feature, labels=label)
-            loss = criterion(output, label)
+            loss = criterion(output, label, **kwargs)
         loss.backward()
         optimizer.step()
         score = metric_function(label, output, preprocess)
@@ -44,7 +48,7 @@ def train_step(model, criterion, optimizer, batch_item, training, preprocess=Non
         model.eval()
         with torch.no_grad():
             output = model(img, csv_feature, labels=label, train=False)
-            loss = criterion(output, label)
+            loss = criterion(output, label, **kwargs)
         score = metric_function(label, output, preprocess)
         return loss, score
 
@@ -69,11 +73,16 @@ if __name__=='__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-f', '--from_epoch',
                         type=int, default=0)
+    
     parser.add_argument('-m', '--model_name',
                         type=str, default='base')
     parser.add_argument('-sch', '--scheduler',
                         type=str, default='none')
+    
+    parser.add_argument('-smooth','--smoothing',
+                        type=float, default=0)
     parser.add_argument('-s','--for_submission', action='store_true')
+    
     parser.add_argument('-i','--inference', action='store_true')
     parser.add_argument('-ip','--model_path', default='none')
     
