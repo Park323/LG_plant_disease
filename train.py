@@ -1,21 +1,19 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import cv2
-from torchvision.models.densenet import DenseNet
 from tqdm import tqdm
-from glob import glob
 import os, argparse
 from omegaconf import OmegaConf
 
 import torch
-from torch import nn
+from torch.utils.data import DataLoader
 
 from dataset import preprocess
-from dataset.dataset import CustomDataset, get_annotations
+from dataset.dataset import CustomDataset
 from model.base_model import CNN2RNN
 from model.jk_model import DrJeonko
-from model.lab_model import CatClassifier, LAB_model
+from model.lab_model import *
+from model.dense_model import DenseNet
 from utils.scheduler import CosineAnnealingWarmUpRestarts
 from utils.metric import *
 
@@ -50,6 +48,21 @@ def train_step(model, criterion, optimizer, batch_item, training, preprocess=Non
         score = metric_function(label, output, preprocess)
         return loss, score
 
+def predict(config, model, dataset, training=False):
+    model.eval()
+    tqdm_dataset = tqdm(enumerate(dataset))
+    results = []
+    answer = []
+    for batch, batch_item in tqdm_dataset:
+        img = batch_item['img'].to(DEVICE)
+        seq = batch_item['csv_feature'].to(DEVICE)
+        with torch.no_grad():
+            output = model(img, seq, train=False)
+        results.extend(output)
+        if training:
+            answer.extend(batch_item['label'])
+    return results, answer
+
 if __name__=='__main__':
     
     # Load Config
@@ -58,18 +71,24 @@ if __name__=='__main__':
                         type=int, default=0)
     parser.add_argument('-m', '--model_name',
                         type=str, default='base')
+    parser.add_argument('-sch', '--scheduler',
+                        type=str, default='none')
     parser.add_argument('-s','--for_submission', action='store_true')
+    parser.add_argument('-i','--inference', action='store_true')
+    parser.add_argument('-ip','--model_path', default='none')
     
     args = parser.parse_args()
     config = OmegaConf.load(f'config/config.yaml')
     mconfig = OmegaConf.load(f'config/{args.model_name}_config.yaml')
     
     TRAIN = mconfig.TRAIN
+    TEST  = config.TEST
     DATA  = config.DATA
     
     IMAGE_PATH = DATA.DATA_ROOT + '/' + DATA.IMAGE_PATH
     TRAIN_PATH = DATA.DATA_ROOT + '/' + DATA.TRAIN_PATH
     VALID_PATH = DATA.DATA_ROOT + '/' + DATA.VALID_PATH
+    TEST_PATH  = DATA.DATA_ROOT + '/' + DATA.TEST_PATH
     
     ##########################      DataLoader 정의     #########################
     print('Data Loading...')
@@ -77,9 +96,9 @@ if __name__=='__main__':
     if args.model_name=='base':
         preprocessor = preprocess.Base_Processor(config)
     elif args.model_name=='lab':
-        preprocessor = preprocess.LAB_Processor(config)
-    elif args.model_name=='lab_cat':
-        preprocessor = preprocess.LAB_Processor(config)
+        preprocessor = preprocess.Concat_processor(config)
+    elif args.model_name=='lab_crop':
+        preprocessor = preprocess.Concat_processor(config)
     elif args.model_name=='dense':
         preprocessor = preprocess.Base_Processor(config)
     elif args.model_name=='drj':
@@ -96,7 +115,7 @@ if __name__=='__main__':
         with open(VALID_PATH, 'r') as f:
             train_paths = [*train_paths, *f.read().split('\n')]
         train_dataset = CustomDataset(train_paths, pre=preprocessor)
-        train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=TRAIN.BATCH_SIZE, 
+        train_dataloader = DataLoader(train_dataset, batch_size=TRAIN.BATCH_SIZE, 
                                                     num_workers=config.TRAIN.NUM_WORKER, shuffle=True)
     else:
         with open(TRAIN_PATH, 'r') as f:
@@ -104,13 +123,44 @@ if __name__=='__main__':
         with open(VALID_PATH, 'r') as f:
             val_dataset = CustomDataset(f.read().split('\n'), pre=preprocessor)
             
-        train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=TRAIN.BATCH_SIZE, 
+        train_dataloader = DataLoader(train_dataset, batch_size=TRAIN.BATCH_SIZE, 
                                                     num_workers=config.TRAIN.NUM_WORKER, shuffle=True)
-        val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=TRAIN.BATCH_SIZE, 
+        val_dataloader = DataLoader(val_dataset, batch_size=TRAIN.BATCH_SIZE, 
                                                     num_workers=config.TRAIN.NUM_WORKER, shuffle=False)
-    #####################################################################
     
-    ################  Model / Loss / Optimizer / Scheduler 정의  ################
+    ##################            Define metrics          #######################
+    
+    if args.model_name=='base':
+        pass
+    elif args.model_name=='lab':
+        pass
+    elif args.model_name=='lab_crop':
+        pass
+    elif args.model_name=='dense':
+        pass
+    elif args.model_name=='drj':
+        pass
+    
+    criterion = ce_loss
+    metric_function = accuracy_function
+    
+    ##################              Inference             #######################
+    if args.inference:
+        assert args.model_path != 'none', 'Model Path should be passed by argument.\nExample) train.py -i -ip output/sample_model.pt'
+        print('Inference Start...')
+        with open(TEST_PATH, 'r') as f:
+            test_dataset = CustomDataset(f.read().split('\n'), pre=preprocessor, mode='test')
+        test_dataloader = DataLoader(test_dataset, batch_size=TEST.BATCH_SIZE, num_workers=TEST.NUM_WORKER, shuffle=False)
+        
+        model = torch.load(args.model_path)
+        
+        preds, answer = predict(TEST, model, test_dataloader)
+        
+        submission = pd.read_csv(f'{TEST.SAMPLE_PATH}')
+        submission['label'] = metric_function(None, preds, inference=True)
+        submission.to_csv(f'{TRAIN.SAVE_PATH}/submission.csv', index=False)
+    
+    ################  Model / Optimizer / Scheduler 정의  ################
     print('Model Loading...')
     
     if args.from_epoch:
@@ -124,42 +174,30 @@ if __name__=='__main__':
                             rate=TRAIN.DROPOUT_RATE)
         elif args.model_name=='lab':
             model = LAB_model(TRAIN)
-        elif args.model_name=='lab_cat':
-            model = CatClassifier(TRAIN)
+        elif args.model_name=='lab_crop':
+            model = CropClassifier(TRAIN)
         elif args.model_name=='dense':
             model = DenseNet(TRAIN)
         elif args.model_name=='drj':
             model = DrJeonko(TRAIN)
 
     model = model.to(DEVICE)
-    
-    if args.model_name=='base':
-        criterion = base_loss
-        metric_function = accuracy_function
-    elif args.model_name=='lab':
-        criterion = lab_dr_loss
-        metric_function = lab_metric
-    elif args.model_name=='lab_cat':
-        criterion = lab_cat_loss
-        metric_function = lab_cat_metric
-    elif args.model_name=='dense':
-        criterion = base_loss
-        metric_function = accuracy_function
-    elif args.model_name=='drj':
-        criterion = seperated_loss
-        metric_function = seperated_metric
-    
     optimizer = torch.optim.Adam(model.parameters(), lr=TRAIN.LEARNING_RATE)
-    # scheduler = CosineAnnealingWarmUpRestarts(optimizer, T_0=15, T_mult=2, 
-    #                                           eta_max=TRAIN.LR_MAX, T_up=3, gamma=0.5)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer=optimizer, factor=0.5,
+    
+    if args.scheduler == 'none':
+        pass
+    elif args.scheduler == 'reduce':
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer=optimizer, factor=0.5,
                                                            patience=3, mode='max')
+    elif args.scheduler == 'cosine':
+        optimizer = torch.optim.Adam(model.parameters(), lr=1e-8)
+        scheduler = CosineAnnealingWarmUpRestarts(optimizer, T_0=15, T_mult=2, 
+                                                  eta_max=TRAIN.LEARNING_RATE, T_up=3, gamma=0.5)
+    
     
     if args.from_epoch and os.path.exists(f'{TRAIN.SAVE_PATH}/optimizer_states.pt'):
         optimizer.load_state_dict(torch.load(f'{TRAIN.SAVE_PATH}/optimizer_states.pt'))
         scheduler.load_state_dict(torch.load(f'{TRAIN.SAVE_PATH}/scheduler_states.pt'))
-    #############################################################################
-    
     
     #########################         TRAIN         #############################
     print('Train Start')
@@ -192,10 +230,12 @@ if __name__=='__main__':
                 'Mean F-1' : '{:06f}'.format(total_acc/(batch+1)),
                 'Learning_rate' : '{}'.format(optimizer.param_groups[0]['lr'])
             })
+        train_batch = batch
         
         if args.for_submission:
             total_val_loss = 0
             total_val_acc = 0
+            val_batch = 0
         else:
             tqdm_dataset = tqdm(enumerate(val_dataloader))
             training = False
@@ -211,20 +251,21 @@ if __name__=='__main__':
                     'Mean Val Loss' : '{:06f}'.format(total_val_loss/(batch+1)),
                     'Mean Val F-1' : '{:06f}'.format(total_val_acc/(batch+1))
                 })
+            val_batch = batch
         
         # scheduler.step(epoch)
-        scheduler.step(total_val_acc/(batch+1))
+        scheduler.step(total_val_acc/(val_batch+1))
         
         if len(loss_plot)==epoch:
-            loss_plot.append(total_loss.item()/(batch+1))
-            metric_plot.append(total_acc/(batch+1))
-            val_loss_plot.append(total_val_loss.item()/(batch+1))
-            val_metric_plot.append(total_val_acc/(batch+1))
+            loss_plot.append(total_loss.item()/(train_batch+1))
+            metric_plot.append(total_acc/(train_batch+1))
+            val_loss_plot.append(total_val_loss.item()/(val_batch+1))
+            val_metric_plot.append(total_val_acc/(val_batch+1))
         else:
-            loss_plot[epoch]=total_loss.item()/(batch+1)
-            metric_plot[epoch]=total_acc/(batch+1)
-            val_loss_plot[epoch]=total_val_loss.item()/(batch+1)
-            val_metric_plot[epoch]=total_val_acc/(batch+1)
+            loss_plot[epoch]=total_loss.item()/(train_batch+1)
+            metric_plot[epoch]=total_acc/(train_batch+1)
+            val_loss_plot[epoch]=total_val_loss.item()/(val_batch+1)
+            val_metric_plot[epoch]=total_val_acc/(val_batch+1)
                 
         # check/make directory for model file
         dp = []
@@ -236,8 +277,11 @@ if __name__=='__main__':
             dp.append(directory)
         
         
-        if total_val_loss > max(val_metric_plot):
-            torch.save(model, f'{TRAIN.SAVE_PATH}/model_best.pt')
+        if total_val_acc > max(val_metric_plot):
+            torch.save(model, f'{TRAIN.SAVE_PATH}/model_best_f1.pt')
+        
+        if total_val_loss < min(val_loss_plot):
+            torch.save(model, f'{TRAIN.SAVE_PATH}/model_min_loss.pt')
         
         if ((epoch+1) % config.TRAIN.SAVE_PERIOD == 0) or (epoch+1 == TRAIN.EPOCHS):
             torch.save(model, f'{TRAIN.SAVE_PATH}/model_{epoch+1}.pt')

@@ -17,4 +17,3 @@ TEST :
   BATCH_SIZE    : 64
   NUM_WORKER    : 4
   SAMPLE_PATH   : sample_submission.csv
-  SUBMIT_PATH   : output/test0/submission.csv

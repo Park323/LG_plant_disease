@@ -60,17 +60,23 @@ class Processor():
     def label_decoder(self, label, *args, **kwargs):
         pass
     
+    def label_to_index(self, label, *args, **kwargs):
+        pass
+    
     def initialize(self):
         pass
 
     def img_processing(self, img):
-        pass
+        img = cv2.resize(img, dsize=(224, 224), interpolation=cv2.INTER_AREA)
+        img = img.astype(np.float32)/255
+        img = np.transpose(img, (2,0,1))
+        return img
 
     def json_processing(self, json_path):
-        pass
+        return json_path
         
     def csv_processing(self, df):
-        pass
+        return np.array([[0]])
     
     def save_dictionary(self):
         with open(f'{self.config.DATA.DATA_ROOT}/{self.dict_name}', 'wb') as f:
@@ -80,8 +86,11 @@ class Processor():
         with open(path, 'rb') as f:
             dic = pickle.load(f)
         self.feature_dict = dic
-    
+
 class Base_Processor(Processor):
+    '''
+    This Processor Generates Labels with string with proper pair (CLASS_N=146)
+    '''
     
     def __init__(self, config):
         super(Base_Processor, self).__init__(config)
@@ -170,12 +179,16 @@ class Base_Processor2(Base_Processor):
         if disease not in disease_dict[crop].keys() or ((disease=='00') != (risk=='0')):
             return f'{crop}_00_0'
         return f'{crop}_{disease}_{risk}'
-        
-class LAB_Processor(Processor):
+
+class Concat_Processor(Processor):
+    '''
+    This Processor Generates Labels with concatenated one_hot_label
+    ex) return tensor [...1...|...1...|...1...|...1...] with size(B, 38)
+        crop:6, disease:21, risk:4, area:7
+    '''
     
     def __init__(self, config):
-        super(LAB_Processor, self).__init__(config)
-        self.dict_name = 'csv_feature_dict.pkl'
+        super(Concat_Processor, self).__init__(config)
         
     def label_encoder(self, label, *args, **kwargs):
         area = str(kwargs['dic']['annotations']['area'])
@@ -210,14 +223,30 @@ class LAB_Processor(Processor):
     def initialize(self):
         self.save_dictionary()
 
-    def img_processing(self, img):
-        img = cv2.resize(img, dsize=(224, 224), interpolation=cv2.INTER_AREA)
-        img = img.astype(np.float32)/255
-        img = np.transpose(img, (2,0,1))
-        return img
-
-    def json_processing(self, json_path):
-        return json_path
+class CropOnly_Processor(Processor):
+    '''
+    This Processor Generates Labels with one_hot_label of crop
+    ex) return tensor [...1...|...1...|...1...|...1...] with size(B, 38)
+        crop:6, disease:21, risk:4, area:7
+    '''
+    
+    def __init__(self, config):
+        super(CropOnly_Processor, self).__init__(config)
         
-    def csv_processing(self, df):
-        return np.array([[0]])
+    def label_encoder(self, label, *args, **kwargs):
+        area = str(kwargs['dic']['annotations']['area'])
+        
+        crop, disease, risk = label.split('_')
+        
+        one_hot_label = torch.zeros(6, dtype=torch.float32)
+        one_hot_label[self.crop_dict[crop]] = 1.
+        # one_hot_label[6+self.area_dict[area]] = 1.
+        
+        return one_hot_label
+    
+    def label_decoder(self, label, *args, **kwargs):
+        crop = {val:key for key, val in self.crop_dict.items()}[label[0]]
+        return f'{crop}'
+        
+    def initialize(self):
+        self.save_dictionary()

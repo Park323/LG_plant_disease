@@ -14,7 +14,7 @@ class DenseNet(nn.Module):
         self.conv     = nn.Sequential(
             SimpleConv2d(1024, 2048, kernel_size=3, padding=1, bias=False),
             SimpleConv2d(2048, 2048, kernel_size=3, padding=1, bias=False),
-            SimpleConv2d(2048, 146, kernel_size=3, padding=1, bias=False),
+            SimpleConv2d(2048, config.CLASS_N, kernel_size=3, padding=1, bias=False),
         )
         # self.inception = models.inception_v3(pretrained=True, aux_logits=False)
         # self.inception.fc = nn.Linear(self.inception.fc.in_features, 512)

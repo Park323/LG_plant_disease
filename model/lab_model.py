@@ -29,10 +29,15 @@ class LAB_model(nn.Module):
             InceptionCellB(192*4, 192),
             InceptionCellB(192*4, 192)
         )
-        self.crop_map = nn.Linear(6, 54*54)
-        self.area_map = nn.Linear(7, 54*54)
-        self.disease_map = nn.Linear(768, 21)
-        self.risk_map = nn.Linear(768, 4)
+        # self.crop_map = nn.Linear(6, 54*54)
+        # self.area_map = nn.Linear(7, 54*54)
+        # self.disease_map = nn.Linear(768, 21)
+        # self.risk_map = nn.Linear(768, 4)
+        self.fc_layer = nn.Sequential(
+            nn.Linear(768, 768),
+            nn.ReLU(),
+            nn.Linear(768, config.CLASS_N)
+        )
         
     def forward(self, img, seq, labels=None, train=True, **kwargs):
         if train:
@@ -54,16 +59,18 @@ class LAB_model(nn.Module):
         inp = F.adaptive_avg_pool2d(inp, (1,1))
         out = inp.view(inp.shape[0], -1)
         
-        out_d = F.softmax(self.disease_map(out))
-        out_r = F.softmax(self.risk_map(out))
+        # out_d = F.softmax(self.disease_map(out))
+        # out_r = F.softmax(self.risk_map(out))
         
-        outputs = torch.cat((crop, out_d, out_r, area), dim=1)
+        # outputs = torch.cat((crop, out_d, out_r, area), dim=1)
+        
+        outputs = F.softmax(self.fc_layer(out))
         
         return outputs
     
-class CatClassifier(nn.Module):
+class CropClassifier(nn.Module):
     def __init__(self, config):
-        super(CatClassifier,self).__init__()
+        super(CropClassifier,self).__init__()
         # self.densenet = torch.hub.load('pytorch/vision:v0.10.0', 'densenet121', pretrained=True)
         # for param in self.densenet.parameters():
         #     param.requires_grad = False
@@ -80,7 +87,7 @@ class CatClassifier(nn.Module):
             else:
                 param.requires_grad = False
         self.crop_fc  = nn.Linear(512, 6)
-        self.area_fc  = nn.Linear(512, 7)
+        # self.area_fc  = nn.Linear(512, 7)
         
     def forward(self, img, seq, labels=None, train=True, **kwargs):
         # # densenet
@@ -96,9 +103,10 @@ class CatClassifier(nn.Module):
         img = transforms.Resize(256)(img)
         feat = self.inception(img)
         out_c = F.softmax(self.crop_fc(feat))
-        out_a = F.softmax(self.area_fc(feat))
+        # out_a = F.softmax(self.area_fc(feat))
         
-        outputs = torch.cat((out_c, out_a), dim=1)
+        # outputs = torch.cat((out_c, out_a), dim=1)
+        outputs = out_c
         
         return outputs
     
