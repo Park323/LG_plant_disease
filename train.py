@@ -114,10 +114,10 @@ def get_scheduler(optimizer, sch_name='none', lr=0):
     if sch_name == 'none':
         return None
     elif sch_name == 'reduce':
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer=optimizer, factor=0.5,
+        return torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer=optimizer, factor=0.5,
                                                            patience=3, mode='max')
     elif sch_name == 'cosine':
-        scheduler = CosineAnnealingWarmUpRestarts(optimizer, T_0=15, T_mult=2, 
+        return CosineAnnealingWarmUpRestarts(optimizer, T_0=15, T_mult=2, 
                                                   eta_max=lr, T_up=3, gamma=0.5)
 
 def scheduler_step(scheduler, sch_name='none', epoch=None, value=None):
@@ -189,6 +189,8 @@ def main(args):
         submission = pd.read_csv(f'{TEST.SAMPLE_PATH}')
         submission['label'] = metric_function(None, preds, inference=True)
         submission.to_csv(f'{TRAIN.SAVE_PATH}/submission.csv', index=False)
+        
+        return None
     
     ################  Model / Optimizer / Scheduler 정의  ################
     print('Model Loading...')
@@ -198,7 +200,7 @@ def main(args):
         model = torch.load(TRAIN.SAVE_PATH + '/' + f'model_{args.from_epoch}.pt')
     else:
         # Argument에 따라 model 변경
-        model = get_model(config, model_name=args.model_name, config2=config)
+        model = get_model(TRAIN, model_name=args.model_name, config2=config)
 
     model = model.to(DEVICE)
     optimizer = torch.optim.Adam(model.parameters(), lr=TRAIN.LEARNING_RATE)
