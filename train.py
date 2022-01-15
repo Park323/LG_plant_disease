@@ -67,26 +67,68 @@ def predict(config, model, dataset, training=False):
             answer.extend(batch_item['label'])
     return results, answer
 
-if __name__=='__main__':
+def get_preprocessor(config, model_name=None, **kwargs):
+    if model_name=='base':
+        return preprocess.Basic_CSV_Processor(config)
+    elif model_name=='lab':
+        return preprocess.Concat_processor(config)
+    elif model_name=='lab_crop':
+        return preprocess.Concat_processor(config)
+    elif model_name=='dense':
+        return preprocess.Base_Processor(config)
+    elif model_name=='drj':
+        return preprocess.Base_Processor(config)
+
+def get_metrics(model_name):
     
-    # Load Config
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-f', '--from_epoch',
-                        type=int, default=0)
+    if model_name=='base':
+        pass
+    elif model_name=='lab':
+        pass
+    elif model_name=='lab_crop':
+        pass
+    elif model_name=='dense':
+        pass
+    elif model_name=='drj':
+        pass
     
-    parser.add_argument('-m', '--model_name',
-                        type=str, default='base')
-    parser.add_argument('-sch', '--scheduler',
-                        type=str, default='none')
+    criterion = ce_loss
+    metric_function = accuracy_function
+    return criterion, metric_function
+
+def get_model(config, model_name=None, **kwargs):
+    if model_name=='base':
+        return CNN2RNN(max_len=kwargs['config2'].TRAIN.MAX_LEN, embedding_dim=config.EMBEDDING_DIM, \
+                        num_features=config.NUM_FEATURES, class_n=config.CLASS_N, \
+                        rate=config.DROPOUT_RATE)
+    elif model_name=='lab':
+        return LAB_model(config)
+    elif model_name=='lab_crop':
+        return CropClassifier(config)
+    elif model_name=='dense':
+        return DenseNet(config)
+    elif model_name=='drj':
+        return DrJeonko(config)
+
+def get_scheduler(optimizer, sch_name='none', lr=0):
+    if sch_name == 'none':
+        return None
+    elif sch_name == 'reduce':
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer=optimizer, factor=0.5,
+                                                           patience=3, mode='max')
+    elif sch_name == 'cosine':
+        scheduler = CosineAnnealingWarmUpRestarts(optimizer, T_0=15, T_mult=2, 
+                                                  eta_max=lr, T_up=3, gamma=0.5)
+
+def scheduler_step(scheduler, sch_name='none', epoch=None, value=None):
+    if sch_name == 'none':
+        pass
+    elif sch_name == 'reduce':
+        scheduler.step(value)
+    elif sch_name == 'cosine':
+        scheduler.step(epoch)
     
-    parser.add_argument('-smooth','--smoothing',
-                        type=float, default=0)
-    parser.add_argument('-s','--for_submission', action='store_true')
-    
-    parser.add_argument('-i','--inference', action='store_true')
-    parser.add_argument('-ip','--model_path', default='none')
-    
-    args = parser.parse_args()
+def main(args):
     config = OmegaConf.load(f'config/config.yaml')
     mconfig = OmegaConf.load(f'config/{args.model_name}_config.yaml')
     
@@ -102,16 +144,7 @@ if __name__=='__main__':
     ##########################      DataLoader 정의     #########################
     print('Data Loading...')
     
-    if args.model_name=='base':
-        preprocessor = preprocess.Basic_CSV_Processor(config)
-    elif args.model_name=='lab':
-        preprocessor = preprocess.Concat_processor(config)
-    elif args.model_name=='lab_crop':
-        preprocessor = preprocess.Concat_processor(config)
-    elif args.model_name=='dense':
-        preprocessor = preprocess.Base_Processor(config)
-    elif args.model_name=='drj':
-        preprocessor = preprocess.Base_Processor(config)
+    preprocessor = get_preprocessor(config, args.model_name)
         
     if os.path.exists(f'{DATA.DATA_ROOT}/{preprocessor.dict_name}'):
         preprocessor.load_dictionary(f'{DATA.DATA_ROOT}/{preprocessor.dict_name}')
@@ -139,19 +172,7 @@ if __name__=='__main__':
     
     ##################            Define metrics          #######################
     
-    if args.model_name=='base':
-        pass
-    elif args.model_name=='lab':
-        pass
-    elif args.model_name=='lab_crop':
-        pass
-    elif args.model_name=='dense':
-        pass
-    elif args.model_name=='drj':
-        pass
-    
-    criterion = ce_loss
-    metric_function = accuracy_function
+    criterion, metric_function = get_metrics(args.model_name)
     
     ##################              Inference             #######################
     if args.inference:
@@ -177,32 +198,14 @@ if __name__=='__main__':
         model = torch.load(TRAIN.SAVE_PATH + '/' + f'model_{args.from_epoch}.pt')
     else:
         # Argument에 따라 model 변경
-        if args.model_name=='base':
-            model = CNN2RNN(max_len=config.TRAIN.MAX_LEN, embedding_dim=TRAIN.EMBEDDING_DIM, \
-                            num_features=TRAIN.NUM_FEATURES, class_n=TRAIN.CLASS_N, \
-                            rate=TRAIN.DROPOUT_RATE)
-        elif args.model_name=='lab':
-            model = LAB_model(TRAIN)
-        elif args.model_name=='lab_crop':
-            model = CropClassifier(TRAIN)
-        elif args.model_name=='dense':
-            model = DenseNet(TRAIN)
-        elif args.model_name=='drj':
-            model = DrJeonko(TRAIN)
+        model = get_model(config, model_name=args.model_name, config2=config)
 
     model = model.to(DEVICE)
     optimizer = torch.optim.Adam(model.parameters(), lr=TRAIN.LEARNING_RATE)
-    
-    if args.scheduler == 'none':
-        pass
-    elif args.scheduler == 'reduce':
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer=optimizer, factor=0.5,
-                                                           patience=3, mode='max')
-    elif args.scheduler == 'cosine':
-        optimizer = torch.optim.Adam(model.parameters(), lr=1e-8)
-        scheduler = CosineAnnealingWarmUpRestarts(optimizer, T_0=15, T_mult=2, 
-                                                  eta_max=TRAIN.LEARNING_RATE, T_up=3, gamma=0.5)
-    
+    if args.scheduler == 'cosine':
+        optimizer = torch.optim.Adam(model.parameters(), lr=1e-8) # lr should be very small value
+        
+    scheduler = get_scheduler(optimizer, args.scheduler, lr=TRAIN.LEARNING_RATE)
     
     if args.from_epoch and os.path.exists(f'{TRAIN.SAVE_PATH}/optimizer_states.pt'):
         optimizer.load_state_dict(torch.load(f'{TRAIN.SAVE_PATH}/optimizer_states.pt'))
@@ -262,8 +265,9 @@ if __name__=='__main__':
                 })
             val_batch = batch
         
-        # scheduler.step(epoch)
-        scheduler.step(total_val_acc/(val_batch+1))
+        scheduler_step(scheduler, args.scheduler, 
+                       value = total_val_acc/(val_batch+1),
+                       epoch = epoch)
         
         if len(loss_plot)==epoch:
             loss_plot.append(total_loss.item()/(train_batch+1))
@@ -301,3 +305,27 @@ if __name__=='__main__':
                         f'{TRAIN.SAVE_PATH}/scheduler_states.pt')
             torch.save(optimizer.state_dict(),
                         f'{TRAIN.SAVE_PATH}/optimizer_states.pt')
+            
+
+if __name__=='__main__':
+    
+    # Load Config
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-f', '--from_epoch',
+                        type=int, default=0)
+    
+    parser.add_argument('-m', '--model_name',
+                        type=str, default='base')
+    parser.add_argument('-sch', '--scheduler',
+                        type=str, default='none')
+    
+    parser.add_argument('-smooth','--smoothing',
+                        type=float, default=0)
+    parser.add_argument('-s','--for_submission', action='store_true')
+    
+    parser.add_argument('-i','--inference', action='store_true')
+    parser.add_argument('-ip','--model_path', default='none')
+    
+    args = parser.parse_args()
+    
+    main(args)
