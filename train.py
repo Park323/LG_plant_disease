@@ -290,10 +290,10 @@ def main(args):
             dp.append(directory)
         
         
-        if total_val_acc/(val_batch+1) > max(val_metric_plot):
+        if total_val_acc/(val_batch+1) == max(val_metric_plot):
             torch.save(model, f'{TRAIN.SAVE_PATH}/model_best_f1.pt')
         
-        if total_val_loss/(val_batch+1) < min(val_loss_plot):
+        if total_val_loss.item()/(val_batch+1) == min(val_loss_plot):
             torch.save(model, f'{TRAIN.SAVE_PATH}/model_min_loss.pt')
         
         if ((epoch+1) % config.TRAIN.SAVE_PERIOD == 0) or (epoch+1 == TRAIN.EPOCHS):
