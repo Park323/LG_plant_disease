@@ -14,6 +14,9 @@ if __name__=='__main__':
     valid_path = config['DATA']['VALID_PATH']
     test_path  = config['DATA']['TEST_PATH']
     
+    # Train-Valid Split
+    print('Exploration Start')
+    
     JOIN = lambda x: img_folder + '/' + x
     files = os.listdir(img_folder)
     files = [file for file in list(map(JOIN, files)) if os.path.isdir(file)]
@@ -22,9 +25,14 @@ if __name__=='__main__':
     train_files = files[:-int(len(files) * val_rate)]
     valid_files = files[-int(len(files) * val_rate):]
     
+    print('Train-Valid Seperated.')
+    
     JOIN = lambda x: test_folder + '/' + x
     test_files = os.listdir(test_folder)
     test_files = [file for file in list(map(JOIN, test_files)) if os.path.isdir(file)]
+    test_files = sorted(test_files)
+    
+    print('Test data Explored.')
     
     JOIN = lambda x: data_dir + '/' + x
     with open(JOIN(train_path), 'w') as f:

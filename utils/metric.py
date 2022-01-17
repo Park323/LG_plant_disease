@@ -6,7 +6,9 @@ from torch.nn.modules.loss import MultiLabelSoftMarginLoss
 
 def accuracy_function(real, pred, preprocess=None, inference=False, *args, **kwargs):    
     pred = torch.argmax(pred, dim=1).cpu()
-    if inference: return [preprocess.label_decoder(p) for p in pred]
+    if inference: 
+        pred = pred.tolist()
+        return [preprocess.label_decoder(p) for p in pred]
     real = real.cpu()
     score = f1_score(real, pred, average='macro')
     return score

@@ -63,6 +63,7 @@ def predict(config, model, dataset, training=False):
         results.extend(output)
         if training:
             answer.extend(batch_item['label'])
+    results = torch.stack(results)
     return results, answer
 
 def get_preprocessor(config, model_name=None, **kwargs):
