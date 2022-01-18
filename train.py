@@ -14,6 +14,7 @@ from model.base_model import CNN2RNN
 from model.jk_model import DrJeonko
 from model.lab_model import *
 from model.dense_model import DenseNet
+from model.vit_model import ViT_tuned
 from utils.scheduler import CosineAnnealingWarmUpRestarts
 from utils.metric import *
 
@@ -74,9 +75,11 @@ def get_preprocessor(config, model_name=None, **kwargs):
     elif model_name=='lab_crop':
         return preprocess.Concat_processor(config)
     elif model_name=='dense':
-        return preprocess.Base_Processor(config)
+        return preprocess.Dense_Processor(config)
     elif model_name=='drj':
         return preprocess.Base_Processor(config)
+    elif model_name=='vit':
+        return preprocess.ViT_Processor(config)
 
 def get_metrics(model_name):
     
@@ -89,6 +92,8 @@ def get_metrics(model_name):
     elif model_name=='dense':
         pass
     elif model_name=='drj':
+        pass
+    elif model_name=='vit':
         pass
     
     criterion = ce_loss
@@ -108,6 +113,8 @@ def get_model(config, model_name=None, **kwargs):
         return DenseNet(config)
     elif model_name=='drj':
         return DrJeonko(config)
+    elif model_name=='vit':
+        return ViT_tuned(config)
 
 def get_scheduler(optimizer, sch_name='none', lr=0):
     if sch_name == 'none':

@@ -25,6 +25,9 @@ class DenseNet(nn.Module):
         #         param.requires_grad = False
         
     def forward(self, img, seq, labels=None, train=True, **kwargs):
+        # resize
+        # img = transforms.Resize(224)(img)
+        
         # densenet
         features = self.densenet.features(img)
         out = F.relu(features, inplace=True)

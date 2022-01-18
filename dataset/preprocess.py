@@ -235,3 +235,11 @@ class CropOnly_Processor(Processor):
         
     def initialize(self):
         self.save_dictionary()
+
+class Dense_Processor(Base_Processor):
+    def __init__(self, config):
+        super().__init__(config)
+        
+class ViT_Processor(Base_Processor):
+    def __init__(self, config):
+        super().__init__(config)
