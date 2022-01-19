@@ -32,7 +32,7 @@ class ImToSeqTransformer(nn.Module):
         labels_mask = torch.zeros((self.config.LABEL_LEN, self.config.LABEL_LEN))
         for i in range(self.config.LABEL_LEN):
             labels_mask[i, i+1:]=1.
-        outputs = self.decoder(labels, enc, labels_mask) # (BxLxD)
+        outputs = self.decoder(labels, enc, labels_mask.to(labels.device)) # (BxLxD)
         outputs = self.labelDecoding(outputs) # (BxLxC)
         outputs = F.softmax(outputs)
         return outputs
@@ -41,7 +41,7 @@ class ImToSeqTransformer(nn.Module):
         '''
         '''
         enc = self.encoder(images)
-        labels = torch.zeros((images.shape[0], 1)) # (BxL) with '<S>'
+        labels = torch.zeros((images.shape[0], 1)).to(images.device) # (BxL) with '<S>'
         for i in range(self.config.LABEL_LEN-1):
             _labels = labels.clone().detach()
             _labels = one_hot_vector(_labels, self.config.CLASS_N)
@@ -51,8 +51,8 @@ class ImToSeqTransformer(nn.Module):
             outputs = self.labelDecoding(outputs)
             outputs = F.softmax(outputs)
             
-            indices = torch.arange(labels.shape[0])
-            next_class = torch.zeros((labels.shape[0]))
+            indices = torch.arange(labels.shape[0]).to(outputs.device)
+            next_class = torch.zeros((labels.shape[0])).to(outputs.device)
             for k in range(1, self.config.CLASS_N + 1):
                 next_class[indices] = outputs[indices].topk(k, dim=-1).indices[:,i,-1].view(-1).to(torch.float32)
                 indices = self.check_discon(labels, next_class, indices)
@@ -87,14 +87,14 @@ class ImToSeqTransformer(nn.Module):
             ##### For Risk
             ## 00인데 risk가 0이 아니면 에러 / Risk가 아니면 에러
             elif labels.shape[-1] == 3:
-                if (next_class[i] not in range(28,32)) or ((int(labels[i][-1].item()) == 7) ^ (next_class[i]==28)):
+                if (next_class[i] not in range(28,32)) or ((int(labels[i][-1].item())==7) != (next_class[i]==28)):
                     dis_indices.append(i)
         if dis_indices:
             dis_indices = torch.stack(dis_indices)
         return dis_indices
 
 def one_hot_vector(x, C):
-    output = torch.zeros((x.shape[0], x.shape[1], C))
+    output = torch.zeros((x.shape[0], x.shape[1], C)).to(x.device)
     for i in range(x.shape[0]):
         for l in range(x.shape[1]):
             output[i, l, x[i, l].to(torch.long)] = 1.
@@ -169,7 +169,7 @@ class PositionalEmbedding1D(nn.Module):
     
     def forward(self, x):
         """Input has shape `(batch_size, seq_len, emb_dim)`"""
-        return x + self.pos_embedding
+        return x + self.pos_embedding.to(x.device)
             
     def get_angle(self, position, i):
         angles = 1 / torch.float_power(10000, (2 * (i // 2)) / self.dim)
