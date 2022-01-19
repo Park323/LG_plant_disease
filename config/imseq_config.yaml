@@ -1,0 +1,24 @@
+####   CONFIGURATION   ####
+TRAIN :
+  BATCH_SIZE    : 2
+  CLASS_N       : 33 # 31 + 2 (<S>, <E> 추가)
+  LABEL_LEN     : 4
+  MAX_LEN       : 144
+  LEARNING_RATE : 0.0001
+  EMBEDDING_DIM : 768
+  NUM_FEATURES  : 9 ## len(csv_feature_dict)
+  DROPOUT_RATE  : 0.1
+  EPOCHS        : 1
+  VISION_PRETRAIN : True
+  PRE_PATH      : data/B_16.pth
+  SAVE_PATH     : output/test0
+
+  IMAGE_SIZE  : 256
+  D_MODEL     : 768
+  N_HEAD      : 8
+  FF_DIM      : 2048
+  DROP_OUT    : 0.1
+  ENCODER :
+    NUM_LAYER : 6
+  DECODER :
+    NUM_LAYER : 6

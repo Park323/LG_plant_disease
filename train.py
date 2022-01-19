@@ -14,7 +14,7 @@ from model.base_model import CNN2RNN
 from model.jk_model import DrJeonko
 from model.lab_model import *
 from model.dense_model import DenseNet
-from model.vit_model import ViT_tuned
+from model.vit_model import ViT_tuned, ImToSeqTransformer
 from utils.scheduler import CosineAnnealingWarmUpRestarts
 from utils.metric import *
 
@@ -31,7 +31,7 @@ def train_step(
     img = batch_item['img'].to(DEVICE)
     csv_feature = batch_item['csv_feature'].to(DEVICE)
     label = batch_item['label']
-    label = label.to(DEVICE) if isinstance(label, torch.Tensor) else [item.to(DEVICE) for item in label]
+    label = label.to(DEVICE)
     
     if training is True:
         model.train()
@@ -41,6 +41,10 @@ def train_step(
             loss = criterion(output, label, **kwargs)
         loss.backward()
         optimizer.step()
+        if 'decode' in dir(model):
+            model.eval()
+            with torch.no_grad():
+                output = model.decode(img, csv_feature)
         score = metric_function(label, output, preprocess)
         return loss, score
     else:
@@ -48,6 +52,8 @@ def train_step(
         with torch.no_grad():
             output = model(img, csv_feature, labels=label, train=False)
             loss = criterion(output, label, **kwargs)
+        if 'decode' in dir(model):
+            output = model.decode(img, csv_feature)
         score = metric_function(label, output, preprocess)
         return loss, score
 
@@ -60,7 +66,10 @@ def predict(config, model, dataset, training=False):
         img = batch_item['img'].to(DEVICE)
         seq = batch_item['csv_feature'].to(DEVICE)
         with torch.no_grad():
-            output = model(img, seq, train=False)
+            if 'decode' in dir(model):
+                output = model.decode(img, seq, train=False)
+            else:
+                output = model(img, seq, train=False)
         results.extend(output)
         if training:
             answer.extend(batch_item['label'])
@@ -80,8 +89,13 @@ def get_preprocessor(config, model_name=None, **kwargs):
         return preprocess.Base_Processor(config)
     elif model_name=='vit':
         return preprocess.ViT_Processor(config)
+    elif model_name=='imseq':
+        return preprocess.Seq_Processor(config)
 
 def get_metrics(model_name):
+    
+    criterion = ce_loss
+    metric_function = accuracy_function
     
     if model_name=='base':
         pass
@@ -95,9 +109,10 @@ def get_metrics(model_name):
         pass
     elif model_name=='vit':
         pass
+    elif model_name=='imseq':
+        criterion = sequence_loss
+        metric_function = sequence_f1
     
-    criterion = ce_loss
-    metric_function = accuracy_function
     return criterion, metric_function
 
 def get_model(config, model_name=None, **kwargs):
@@ -115,6 +130,8 @@ def get_model(config, model_name=None, **kwargs):
         return DrJeonko(config)
     elif model_name=='vit':
         return ViT_tuned(config)
+    elif model_name=='imseq':
+        return ImToSeqTransformer(config)
 
 def get_scheduler(optimizer, sch_name='none', lr=0):
     if sch_name == 'none':

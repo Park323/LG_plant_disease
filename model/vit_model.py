@@ -9,12 +9,128 @@ from torch import nn
 from torch.nn import functional as F
 from torch.utils import model_zoo
 
+class ImToSeqTransformer(nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        self.config = config
+        self.labelEmbedding = nn.Linear(config.CLASS_N, config.D_MODEL)
+        self.labelDecoding = nn.Linear(config.D_MODEL, config.CLASS_N)
+        self.encoder = ViTEncoder(config)
+        decoderCell = nn.TransformerDecoderLayer(config.D_MODEL, config.N_HEAD, config.FF_DIM, config.DROP_OUT, batch_first=True)
+        self.decoder = nn.TransformerDecoder(decoderCell, config.DECODER.NUM_LAYER)
+        
+    def forward(self, images, csv_feature, labels, *args, **kwargs):
+        '''
+        images (BxCxHxW)
+        labels (BxL)
+        '''
+        enc = self.encoder(images)
+        labels = labels.clone().detach()[:,:-1]
+        labels = F.one_hot(labels, num_classes=self.config.CLASS_N).to(torch.float32) # (BxL) -> (BxLxC)
+        labels = self.labelEmbedding(labels) # (BxLxD)
+        labels = PositionalEmbedding1D(self.config.LABEL_LEN, self.config.D_MODEL, False)(labels).to(torch.float32)
+        labels_mask = torch.zeros((self.config.LABEL_LEN, self.config.LABEL_LEN))
+        for i in range(self.config.LABEL_LEN):
+            labels_mask[i, i+1:]=1.
+        outputs = self.decoder(labels, enc, labels_mask) # (BxLxD)
+        outputs = self.labelDecoding(outputs) # (BxLxC)
+        outputs = F.softmax(outputs)
+        return outputs
+    
+    def decode(self, images, csv_feature, *args, **kwargs):
+        '''
+        '''
+        enc = self.encoder(images)
+        labels = torch.zeros((images.shape[0], 1)) # (BxL) with '<S>'
+        for i in range(self.config.LABEL_LEN-1):
+            _labels = labels.clone().detach()
+            _labels = one_hot_vector(_labels, self.config.CLASS_N)
+            _labels = self.labelEmbedding(_labels) # (Bx(i+1)xD)
+            _labels = PositionalEmbedding1D(i+1, self.config.D_MODEL, False)(_labels).to(torch.float32)
+            outputs = self.decoder(_labels, enc) # (Bx(i+1)xD)
+            outputs = self.labelDecoding(outputs)
+            outputs = F.softmax(outputs)
+            
+            indices = torch.arange(labels.shape[0])
+            next_class = torch.zeros((labels.shape[0]))
+            for k in range(1, self.config.CLASS_N + 1):
+                next_class[indices] = outputs[indices].topk(k, dim=-1).indices[:,i,-1].view(-1).to(torch.float32)
+                indices = self.check_discon(labels, next_class, indices)
+                if len(indices)==0:
+                    break
+            labels = torch.cat([labels, next_class.unsqueeze(-1)], dim=1)
+        return labels
+    
+    def check_discon(self, labels, next_class, indices):
+        disease_dict = {1:[1,2,13,18,19,20],
+                        2:[5,6,14,15,18,19,20], 
+                        3:[9,10,15,18,19,20], 
+                        4:[3,4,13,18,19,20], 
+                        5:[7,8,15,18,19,20], 
+                        6:[11,12,16,17]}
+        disease_dict = {key:[v+7 for v in value] for key, value in disease_dict.items()}
+        
+        dis_indices = []
+        for i in indices:
+            ##### For Crop
+            ## 
+            if labels.shape[-1] == 1:
+                if next_class[i] not in range(1,7):
+                    dis_indices.append(i)
+            ##### For Disease
+            ## 종류에 맞는 disease가 아니면 에러
+            elif labels.shape[-1] == 2:
+                if (next_class[i] in range(7,28)) and (next_class[i]==7 or next_class[i] in disease_dict[int(labels[i][-1].item())]):
+                    pass
+                else:
+                    dis_indices.append(i)
+            ##### For Risk
+            ## 00인데 risk가 0이 아니면 에러 / Risk가 아니면 에러
+            elif labels.shape[-1] == 3:
+                if (next_class[i] not in range(28,32)) or ((int(labels[i][-1].item()) == 7) ^ (next_class[i]==28)):
+                    dis_indices.append(i)
+        if dis_indices:
+            dis_indices = torch.stack(dis_indices)
+        return dis_indices
+
+def one_hot_vector(x, C):
+    output = torch.zeros((x.shape[0], x.shape[1], C))
+    for i in range(x.shape[0]):
+        for l in range(x.shape[1]):
+            output[i, l, x[i, l].to(torch.long)] = 1.
+    return output
+    
+class ViTEncoder(nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        self.vit = ViT(config, 'B_16', pretrained=True)
+        for param in self.vit.parameters():
+            param.requires_grad = True
+        
+    def forward(self, x, *args, **kwargs):
+        """Breaks image into patches, applies pretrained transformer, applies custom MLP head.
+
+        Args:
+            x (tensor): `b,c,fh,fw`
+        """
+        b, c, fh, fw = x.shape
+        x = self.vit.patch_embedding(x)  # b,d,gh,gw
+        x = x.flatten(2).transpose(1, 2)  # b,gh*gw,d
+        if hasattr(self, 'class_token'):
+            x = torch.cat((self.vit.class_token.expand(b, -1, -1), x), dim=1)  # b,gh*gw+1,d
+        if hasattr(self, 'positional_embedding'): 
+            x = self.vit.positional_embedding(x)  # b,gh*gw+1,d 
+        x = self.vit.transformer(x)  # b,gh*gw+1,d
+        return x
+
 class ViT_tuned(nn.Module):
     def __init__(self, config):
         super(ViT_tuned, self).__init__()
         self.vit = ViT(config, 'B_16', pretrained=True)
         for param in self.vit.parameters():
-            param.requires_grad = False
+            param.requires_grad = True
+        # for param in self.vit.transformer.blocks[-1].pwff.parameters():
+        #     param.requires_grad = True
         self.fc = nn.Linear(768, config.CLASS_N)
         
     def forward(self, x, *args, **kwargs):
@@ -43,13 +159,21 @@ class ViT_tuned(nn.Module):
 class PositionalEmbedding1D(nn.Module):
     """Adds (optionally learned) positional embeddings to the inputs."""
 
-    def __init__(self, seq_len, dim):
+    def __init__(self, seq_len, dim, train=True):
         super().__init__()
-        self.pos_embedding = nn.Parameter(torch.zeros(1, seq_len, dim))
+        self.dim = dim
+        if train:
+            self.pos_embedding = nn.Parameter(torch.zeros(1, seq_len, dim))
+        else:
+            self.pos_embedding = torch.stack([self.get_angle(pos, torch.arange(dim)) for pos in range(seq_len)])
     
     def forward(self, x):
         """Input has shape `(batch_size, seq_len, emb_dim)`"""
         return x + self.pos_embedding
+            
+    def get_angle(self, position, i):
+        angles = 1 / torch.float_power(10000, (2 * (i // 2)) / self.dim)
+        return position * angles
 
 
 class ViT(nn.Module):

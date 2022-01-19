@@ -13,10 +13,33 @@ def accuracy_function(real, pred, preprocess=None, inference=False, *args, **kwa
     score = f1_score(real, pred, average='macro')
     return score
 
+def sequence_f1(real, pred, preprocess=None, inference=False, *args, **kwargs):
+    '''
+    inputs - tensor (BxLxC)
+    '''
+    decoder = preprocess.partial_decoder
+    
+    # pred = torch.argmax(pred[:,:-1], dim=2).cpu() #(Bx(L-1))
+    pred = pred[:,1:].cpu()
+    if inference:
+        return [f"{decoder(c.item()).strip('#')}_{decoder(d.item()).strip('#')}_{decoder(r.item()).strip('#')}" for c, d, r in pred]
+    pred = [preprocess.super_encoder(f"{decoder(c.item()).strip('#')}_{decoder(d.item()).strip('#')}_{decoder(r.item()).strip('#')}", True) for c, d, r in pred]
+        
+    real = real[:,1:-1].cpu()
+    real = [preprocess.super_encoder(f"{decoder(c.item()).strip('#')}_{decoder(d.item()).strip('#')}_{decoder(r.item()).strip('#')}", True) for c, d, r in real]
+    
+    score = f1_score(real, pred, average='macro')
+    return score
+
 def ce_loss(outputs, labels, **kwargs):
     # CEL = CrossEntropyLoss()
     CEL = LabelSmoothingLoss(smoothing=kwargs.get('smoothing',0))
     return CEL(outputs, labels)
+
+def sequence_loss(outputs, labels, **kwargs):
+    outputs = outputs[:,:-1].contiguous().view(-1, outputs.shape[-1]) # (B*(L-1) x C)
+    labels = labels[:,1:-1].contiguous().view(-1)
+    return ce_loss(outputs, labels, **kwargs)
 
 def multi_label_loss(outputs, labels, **kwagrs):
     MSL = MultiLabelSoftMarginLoss()

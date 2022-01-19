@@ -10,12 +10,12 @@ grow_dict = {'11':'유묘기', '12':'생장기', '13':'착화/과실기',
              '21':'발아기', '22':'개화기', '23':'신초생장기',
              '24':'과실성숙기', '25':'수확기', '26':'휴면기'}
 crop_dict = {'1':'딸기','2':'토마토','3':'파프리카','4':'오이','5':'고추','6':'시설포도'}
-disease_dict = {'1':{'a1':'딸기잿빛곰팡이병','a2':'딸기흰가루병','b1':'냉해피해','b6':'다량원소결핍 (N)','b7':'다량원소결핍 (P)','b8':'다량원소결핍 (K)'},
-                '2':{'a5':'토마토흰가루병','a6':'토마토잿빛곰팡이병','b2':'열과','b3':'칼슘결핍','b6':'다량원소결핍 (N)','b7':'다량원소결핍 (P)','b8':'다량원소결핍 (K)'},
-                '3':{'a9':'파프리카흰가루병','a10':'파프리카잘록병','b3':'칼슘결핍','b6':'다량원소결핍 (N)','b7':'다량원소결핍 (P)','b8':'다량원소결핍 (K)'},
-                '4':{'a3':'오이노균병','a4':'오이흰가루병','b1':'냉해피해','b6':'다량원소결핍 (N)','b7':'다량원소결핍 (P)','b8':'다량원소결핍 (K)'},
-                '5':{'a7':'고추탄저병','a8':'고추흰가루병','b3':'칼슘결핍','b6':'다량원소결핍 (N)','b7':'다량원소결핍 (P)','b8':'다량원소결핍 (K)'},
-                '6':{'a11':'시설포도탄저병','a12':'시설포도노균병','b4':'일소피해','b5':'축과병'}}
+disease_dict = {'1':{'a1':'딸기잿빛곰팡이병','a2':'딸기흰가루병','b1':'냉해피해','b6':'다량원소결핍 (N)','b7':'다량원소결핍 (P)','b8':'다량원소결핍 (K)'},               # 1,2,13,18,19,20
+                '2':{'a5':'토마토흰가루병','a6':'토마토잿빛곰팡이병','b2':'열과','b3':'칼슘결핍','b6':'다량원소결핍 (N)','b7':'다량원소결핍 (P)','b8':'다량원소결핍 (K)'},# 5,6,14,15,18,19,20
+                '3':{'a9':'파프리카흰가루병','a10':'파프리카잘록병','b3':'칼슘결핍','b6':'다량원소결핍 (N)','b7':'다량원소결핍 (P)','b8':'다량원소결핍 (K)'},             # 9,10,15,18,19,20
+                '4':{'a3':'오이노균병','a4':'오이흰가루병','b1':'냉해피해','b6':'다량원소결핍 (N)','b7':'다량원소결핍 (P)','b8':'다량원소결핍 (K)'},                     # 3,4,13,18,19,20
+                '5':{'a7':'고추탄저병','a8':'고추흰가루병','b3':'칼슘결핍','b6':'다량원소결핍 (N)','b7':'다량원소결핍 (P)','b8':'다량원소결핍 (K)'},                     # 7,8,15,18,19,20
+                '6':{'a11':'시설포도탄저병','a12':'시설포도노균병','b4':'일소피해','b5':'축과병'}}                                                                     # 11,12,16,17
 disease_dict2= {'00':'정상', 
                 'a1':'딸기잿빛곰팡이병', 'a2':'딸기흰가루병', 'a3':'오이노균병', 'a4':'오이흰가루병', 
                 'a5':'토마토흰가루병', 'a6':'토마토잿빛곰팡이병', 'a7':'고추탄저병', 'a8':'고추흰가루병', 
@@ -24,6 +24,12 @@ disease_dict2= {'00':'정상',
                 'b6':'다량원소결핍 (N)', 'b7':'다량원소결핍 (P)', 'b8':'다량원소결핍 (K)'}
 risk_dict = {'1':'초기','2':'중기','3':'말기'}
 risk_dict2 = {'0':'정상','1':'초기','2':'중기','3':'말기'}
+
+partial_dict = {key:value for key, value in [('<S>','StartToken'),
+                                             *crop_dict.items(), 
+                                             *[('#'+idx, disease) for idx, disease in disease_dict2.items()], 
+                                             *[('##'+idx, risk) for idx, risk in risk_dict2.items()],
+                                             ('<E>','EndToken')]}
 
 label_description = {}
 for key, value in disease_dict.items():
@@ -54,6 +60,7 @@ class Processor():
         self.disease_dict = {key:idx for idx, key in enumerate(disease_dict2)}
         self.risk_dict = {key:idx for idx, key in enumerate(risk_dict)}
         self.label_dict = {key:idx for idx, key in enumerate(label_description)}
+        self.partial_dict = {key:idx for idx, key in enumerate(partial_dict)}
         
     def label_encoder(self, label, *args, **kwargs):
         pass
@@ -103,7 +110,13 @@ class Base_Processor(Processor):
     
     def label_decoder(self, label, *args, **kwargs):
         return {val:key for key, val in self.label_dict.items()}[label]
-
+    
+    def partial_encoder(self, label, *args, **kwargs):
+        return torch.tensor(self.partial_dict[label], dtype=torch.long)
+    
+    def partial_decoder(self, label, *args, **kwargs):
+        return {val:key for key, val in self.partial_dict.items()}[label]
+    
 class TrimmedImage_Processor(Base_Processor):
     def img_processing(self, img):
         
@@ -243,3 +256,17 @@ class Dense_Processor(Base_Processor):
 class ViT_Processor(Base_Processor):
     def __init__(self, config):
         super().__init__(config)
+        
+class Seq_Processor(Base_Processor):
+    def __init__(self, config):
+        super().__init__(config)
+        
+    def super_encoder(self, label, *args, **kwargs):
+        return super().label_encoder(label, *args, **kwargs)
+        
+    def label_encoder(self, label, *args, **kwargs):
+        c, d, r = label.split('_')
+        label  = torch.tensor([self.partial_encoder('<S>'), 
+                               self.partial_encoder(c), self.partial_encoder('#'+d), self.partial_encoder('##'+r), 
+                               self.partial_encoder('<E>')], dtype=torch.long)
+        return label
