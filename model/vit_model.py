@@ -41,29 +41,28 @@ class ImToSeqTransformer(nn.Module):
         '''
         '''
         enc = self.encoder(images)
-        labels = torch.zeros((images.shape[0], self.config.LABEL_LEN)).to(images.device) # (BxL) with '<S>'
+        labels = torch.zeros((images.shape[0], 1)).to(images.device) # (BxL) with '<S>'
         for i in range(self.config.LABEL_LEN-1):
             _labels = labels.clone().detach()
             _labels = one_hot_vector(_labels, self.config.CLASS_N)
-            _labels = self.labelEmbedding(_labels) # (BxLxD)
+            _labels = self.labelEmbedding(_labels) # (Bx(i+1)xD)
             _labels = PositionalEmbedding1D(self.config.LABEL_LEN, self.config.D_MODEL, False)(_labels).to(torch.float32)
-            labels_mask = torch.ones((self.config.LABEL_LEN, self.config.LABEL_LEN))
-            labels_mask[:i+1, :i+1]=0.
-            outputs = self.decoder(_labels, enc, labels_mask.to(labels.device)) # (BxLxD)
+            outputs = self.decoder(_labels, enc) # (Bx(i+1)xD)
             outputs = self.labelDecoding(outputs)
-            outputs = F.softmax(outputs)
+            outputs = F.softmax(outputs, dim=-1)
             
             indices = torch.arange(labels.shape[0]).to(outputs.device)
             next_class = torch.zeros((labels.shape[0])).to(outputs.device)
             for k in range(1, self.config.CLASS_N + 1):
-                next_class[indices] = outputs[indices].topk(k, dim=-1).indices[:,i,-1].view(-1).to(torch.float32)
-                indices = self.check_discon(i+1, labels, next_class, indices)
+                topk_classes = outputs[indices].topk(k, dim=-1).indices
+                next_class[indices] = topk_classes[:,i,-1].view(-1).to(torch.float32)
+                indices = self.check_discon(labels, next_class, indices)
                 if len(indices)==0:
                     break
-            labels[:,i+1] = next_class
+            labels = torch.cat([labels, next_class.unsqueeze(-1)], dim=1)
         return labels
     
-    def check_discon(self, pos, labels, next_class, indices):
+    def check_discon(self, labels, next_class, indices):
         disease_dict = {1:[1,2,13,18,19,20],
                         2:[5,6,14,15,18,19,20], 
                         3:[9,10,15,18,19,20], 
@@ -76,20 +75,20 @@ class ImToSeqTransformer(nn.Module):
         for i in indices:
             ##### For Crop
             ## 
-            if pos == 1:
+            if labels.shape[-1] == 1:
                 if next_class[i] not in range(1,7):
                     dis_indices.append(i)
             ##### For Disease
             ## 종류에 맞는 disease가 아니면 에러
-            elif pos == 2:
-                if (next_class[i] in range(7,28)) and (next_class[i]==7 or next_class[i] in disease_dict[int(labels[i][pos-1].item())]):
+            elif labels.shape[-1] == 2:
+                if (next_class[i] in range(7,28)) and (next_class[i]==7 or next_class[i] in disease_dict[int(labels[i][-1].item())]):
                     pass
                 else:
                     dis_indices.append(i)
             ##### For Risk
             ## 00인데 risk가 0이 아니면 에러 / Risk가 아니면 에러
-            elif pos == 3:
-                if (next_class[i] not in range(28,32)) or ((int(labels[i][pos-1].item())==7) != (next_class[i]==28)):
+            elif labels.shape[-1] == 3:
+                if (next_class[i] not in range(28,32)) or ((int(labels[i][-1].item())==7) != (next_class[i]==28)):
                     dis_indices.append(i)
         if dis_indices:
             dis_indices = torch.stack(dis_indices)
@@ -171,7 +170,7 @@ class PositionalEmbedding1D(nn.Module):
     
     def forward(self, x):
         """Input has shape `(batch_size, seq_len, emb_dim)`"""
-        return x + self.pos_embedding.to(x.device)
+        return x + self.pos_embedding.to(x.device)[ :x.shape[1]]
             
     def get_angle(self, position, i):
         angles = 1 / torch.float_power(10000, (2 * (i // 2)) / self.dim)
