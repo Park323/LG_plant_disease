@@ -34,7 +34,7 @@ class ImToSeqTransformer(nn.Module):
             labels_mask[i, i+1:]=1.
         outputs = self.decoder(labels, enc, labels_mask.to(labels.device)) # (BxLxD)
         outputs = self.labelDecoding(outputs) # (BxLxC)
-        outputs = F.softmax(outputs)
+        outputs = F.softmax(outputs, dim=-1)
         return outputs
     
     def decode(self, images, csv_feature, *args, **kwargs):
