@@ -141,7 +141,7 @@ def get_scheduler(optimizer, sch_name='none', lr=0):
                                                            patience=3, mode='max')
     elif sch_name == 'cosine':
         return CosineAnnealingWarmUpRestarts(optimizer, T_0=15, T_mult=2, 
-                                                  eta_max=lr, T_up=3, gamma=1)
+                                                  eta_max=lr, T_up=3, gamma=0.5)
 
 def scheduler_step(scheduler, sch_name='none', epoch=None, value=None):
     if sch_name == 'none':
