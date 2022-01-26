@@ -34,7 +34,7 @@ class ImToSeqTransformer(nn.Module):
             labels_mask[i, i+1:]=1.
         outputs = self.decoder(labels, enc, labels_mask.to(labels.device)) # (BxLxD)
         outputs = self.labelDecoding(outputs) # (BxLxC)
-        outputs = F.softmax(outputs, dim=-1)
+        outputs = F.log_softmax(outputs, dim=-1)
         return outputs
     
     def decode(self, images, csv_feature, *args, **kwargs):
@@ -46,10 +46,10 @@ class ImToSeqTransformer(nn.Module):
             _labels = labels.clone().detach()
             _labels = one_hot_vector(_labels, self.config.CLASS_N)
             _labels = self.labelEmbedding(_labels) # (Bx(i+1)xD)
-            _labels = PositionalEmbedding1D(self.config.LABEL_LEN, self.config.D_MODEL, False)(_labels).to(torch.float32)
+            _labels = PositionalEmbedding1D(i+1, self.config.D_MODEL, False)(_labels).to(torch.float32)
             outputs = self.decoder(_labels, enc) # (Bx(i+1)xD)
             outputs = self.labelDecoding(outputs)
-            outputs = F.softmax(outputs, dim=-1)
+            outputs = F.log_softmax(outputs, dim=-1)
             
             indices = torch.arange(labels.shape[0]).to(outputs.device)
             next_class = torch.zeros((labels.shape[0])).to(outputs.device)
@@ -170,7 +170,7 @@ class PositionalEmbedding1D(nn.Module):
     
     def forward(self, x):
         """Input has shape `(batch_size, seq_len, emb_dim)`"""
-        return x + self.pos_embedding.to(x.device)[ :x.shape[1]]
+        return x + self.pos_embedding.to(x.device)
             
     def get_angle(self, position, i):
         angles = 1 / torch.float_power(10000, (2 * (i // 2)) / self.dim)
