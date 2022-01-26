@@ -1,7 +1,7 @@
 ####   CONFIGURATION   ####
 TRAIN :
   BATCH_SIZE    : 4
-  CLASS_N       : 111
+  CLASS_N       : 48
   MAX_LEN       : 144
   LEARNING_RATE : 0.0001
   EMBEDDING_DIM : 512
