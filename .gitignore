@@ -1,6 +1,7 @@
 # User-Defined
 /data
-/model/yolov5/runs/train
+/output/*
+/model/yolov5
 
 
 # Byte-compiled / optimized / DLL files

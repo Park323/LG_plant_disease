@@ -1,7 +1,7 @@
 ####   CONFIGURATION   ####
 TRAIN :
   BATCH_SIZE    : 2
-  CLASS_N       : 24 # (6+12+4) + 2 (<S>, <E> 추가)
+  CLASS_N       : 24 # 2 + (6+12+4) (<S>, <E> 추가)
   LABEL_LEN     : 4
   MAX_LEN       : 144
   LEARNING_RATE : 0.0001

@@ -34,7 +34,6 @@ class ImToSeqTransformer(nn.Module):
             labels_mask[i, i+1:]=1.
         outputs = self.decoder(labels, enc, labels_mask.to(labels.device)) # (BxLxD)
         outputs = self.labelDecoding(outputs) # (BxLxC)
-        outputs = F.log_softmax(outputs, dim=-1)
         return outputs
     
     def decode(self, images, csv_feature, *args, **kwargs):
@@ -49,7 +48,6 @@ class ImToSeqTransformer(nn.Module):
             _labels = PositionalEmbedding1D(i+1, self.config.D_MODEL, False)(_labels).to(torch.float32)
             outputs = self.decoder(_labels, enc) # (Bx(i+1)xD)
             outputs = self.labelDecoding(outputs)
-            outputs = F.log_softmax(outputs, dim=-1)
             
             indices = torch.arange(labels.shape[0]).to(outputs.device)
             next_class = torch.zeros((labels.shape[0])).to(outputs.device)
@@ -63,35 +61,36 @@ class ImToSeqTransformer(nn.Module):
         return labels
     
     def check_discon(self, labels, next_class, indices):
-        disease_dict = {1:[1,2,13,18,19,20],
-                        2:[5,6,14,15,18,19,20], 
-                        3:[9,10,15,18,19,20], 
-                        4:[3,4,13,18,19,20], 
-                        5:[7,8,15,18,19,20], 
-                        6:[11,12,16,17]}
-        disease_dict = {key:[v+7 for v in value] for key, value in disease_dict.items()}
+        disease_dict = {1:[],
+                        2:[1], 
+                        3:[3,6,9,10,11], 
+                        4:[], 
+                        5:[2,9,10,11], 
+                        6:[4,5,7,8]}
+        disease_dict = {key+1:[v+8 for v in value] for key, value in disease_dict.items()}
         
-        dis_indices = []
+        dis_indices=[]
         for i in indices:
             ##### For Crop
             ## 
             if labels.shape[-1] == 1:
-                if next_class[i] not in range(1,7):
-                    dis_indices.append(i)
+                if next_class[i] not in range(2,8):
+                    dis_indices.append(i.item())
             ##### For Disease
             ## 종류에 맞는 disease가 아니면 에러
             elif labels.shape[-1] == 2:
-                if (next_class[i] in range(7,28)) and (next_class[i]==7 or next_class[i] in disease_dict[int(labels[i][-1].item())]):
+                if (next_class[i] in range(8,20)) and (next_class[i]==8 or next_class[i] in disease_dict[int(labels[i][-1].item())]):
                     pass
                 else:
-                    dis_indices.append(i)
+                    dis_indices.append(i.item())
             ##### For Risk
             ## 00인데 risk가 0이 아니면 에러 / Risk가 아니면 에러
             elif labels.shape[-1] == 3:
-                if (next_class[i] not in range(28,32)) or ((int(labels[i][-1].item())==7) != (next_class[i]==28)):
-                    dis_indices.append(i)
+                if (next_class[i] < 20) or ((labels[i][-1].item()==8.) != (next_class[i].item()==20)):
+                    dis_indices.append(i.item())
         if dis_indices:
-            dis_indices = torch.stack(dis_indices)
+            # dis_indices = torch.stack(dis_indices)
+            dis_indices = torch.tensor(dis_indices)
         return dis_indices
 
 def one_hot_vector(x, C):
@@ -154,6 +153,7 @@ class ViT_tuned(nn.Module):
         if hasattr(self, 'fc'):
             x = self.vit.norm(x)[:, 0]  # b,d
             x = self.fc(x)  # b,num_classes
+        x = F.log_softmax(x, dim=-1)
         return x
         
 

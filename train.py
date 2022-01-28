@@ -23,39 +23,49 @@ warnings.simplefilter('ignore')
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+LABEL_KOR = {idx:key for idx, key in enumerate(preprocess.label_description.values())}
+
 def train_step(
     model, criterion, optimizer, 
-    batch_item, training, 
-    preprocess=None, metric_function=accuracy_function, **kwargs):
+    batch_item, preprocess=None, metric_function=accuracy_function, num_class=None, **kwargs):
     
     img = batch_item['img'].to(DEVICE)
     csv_feature = batch_item['csv_feature'].to(DEVICE)
     label = batch_item['label']
     label = label.to(DEVICE)
     
-    if training is True:
-        model.train()
-        optimizer.zero_grad()
-        with torch.cuda.amp.autocast():
-            output = model(img, csv_feature, labels=label)
-            loss = criterion(output, label, **kwargs)
-        loss.backward()
-        optimizer.step()
-        if 'decode' in dir(model):
-            model.eval()
-            with torch.no_grad():
-                output = model.decode(img, csv_feature)
-        score = metric_function(label, output, preprocess)
-        return loss, score
-    else:
+    model.train()
+    optimizer.zero_grad()
+    with torch.cuda.amp.autocast():
+        output = model(img, csv_feature, labels=label)
+        loss = criterion(output, label, **kwargs)
+    loss.backward()
+    optimizer.step()
+    if 'decode' in dir(model):
         model.eval()
         with torch.no_grad():
-            output = model(img, csv_feature, labels=label, train=False)
-            loss = criterion(output, label, **kwargs)
-        if 'decode' in dir(model):
             output = model.decode(img, csv_feature)
-        score = metric_function(label, output, preprocess)
-        return loss, score
+    score, correct, total = metric_function(label, output, preprocess=preprocess, num_class=num_class)
+    return loss, score, correct, total
+
+def valid_step(
+    model, criterion, optimizer, 
+    batch_item, preprocess=None, metric_function=accuracy_function, num_class=None, **kwargs):
+    assert num_class, 'Argument num_class is needed!!'
+    
+    img = batch_item['img'].to(DEVICE)
+    csv_feature = batch_item['csv_feature'].to(DEVICE)
+    label = batch_item['label']
+    label = label.to(DEVICE)
+    
+    model.eval()
+    with torch.no_grad():
+        output = model(img, csv_feature, labels=label, train=False)
+        loss = criterion(output, label, **kwargs)
+    if 'decode' in dir(model):
+        output = model.decode(img, csv_feature)
+    score, correct, total = metric_function(label, output, preprocess=preprocess, num_class=num_class)
+    return loss, score, correct, total
 
 def predict(config, model, dataset, training=False):
     model.eval()
@@ -92,11 +102,11 @@ def get_preprocessor(config, model_name=None, **kwargs):
     elif model_name=='imseq':
         return preprocess.Seq_Processor(config)
 
-def get_metrics(model_name):
+def get_metrics(model_name, **_kwargs):
     
-    criterion = ce_loss
-    metric_function = accuracy_function
-    
+    criterion = lambda *args, **kwargs: ce_loss(*args, **kwargs, **_kwargs)
+    metric_function = lambda *args, **kwargs: accuracy_function(*args, **kwargs, **_kwargs)
+        
     if model_name=='base':
         pass
     elif model_name=='lab':
@@ -110,8 +120,8 @@ def get_metrics(model_name):
     elif model_name=='vit':
         pass
     elif model_name=='imseq':
-        criterion = sequence_loss
-        metric_function = sequence_f1
+        criterion = lambda *args, **kwargs: sequence_loss(*args, **kwargs, **_kwargs)
+        metric_function = lambda *args, **kwargs: sequence_f1(*args, **kwargs, **_kwargs)
     
     return criterion, metric_function
 
@@ -150,6 +160,15 @@ def scheduler_step(scheduler, sch_name='none', epoch=None, value=None):
         scheduler.step(value)
     elif sch_name == 'cosine':
         scheduler.step(epoch)
+
+def save_epoch(config, epoch, model, optimizer, scheduler, hist):
+    torch.save(model, f'{config.SAVE_PATH}/model_{epoch+1}.pt')
+    torch.save(hist, f'{config.SAVE_PATH}/train_history.pt')
+    if scheduler:
+        torch.save(scheduler.state_dict(), f'{config.SAVE_PATH}/scheduler_states.pt')
+        torch.save(optimizer.state_dict(),
+                    f'{config.SAVE_PATH}/optimizer_states.pt')
+            
     
 def main(args):
     config = OmegaConf.load(f'config/config.yaml')
@@ -195,7 +214,7 @@ def main(args):
     
     ##################            Define metrics          #######################
     
-    criterion, metric_function = get_metrics(args.model_name)
+    criterion, metric_function = get_metrics(args.model_name, smoothing=args.smoothing, gamma=args.gamma)
     
     ##################              Inference             #######################
     if args.inference:
@@ -253,13 +272,17 @@ def main(args):
         total_acc, total_val_acc = 0, 0
         
         tqdm_dataset = tqdm(enumerate(train_dataloader))
-        training = True
+        correct_per_class = np.zeros(TRAIN.CLASS_N)
+        total_per_class = np.zeros(TRAIN.CLASS_N)
         for batch, batch_item in tqdm_dataset:
-            batch_loss, batch_acc = train_step(model, criterion, optimizer, batch_item, training, 
-                                               preprocess=preprocessor, metric_function=metric_function)
+            batch_loss, batch_acc, batch_correct, batch_total = train_step(model, criterion, optimizer, batch_item, 
+                                                                           preprocess=preprocessor, metric_function=metric_function, num_class=len(correct_per_class))
             total_loss += batch_loss
             total_acc += batch_acc
             
+            correct_per_class += batch_correct
+            total_per_class += batch_total
+                
             tqdm_dataset.set_postfix({
                 'Epoch': epoch + 1,
                 'Loss': '{:06f}'.format(batch_loss.item()),
@@ -269,18 +292,33 @@ def main(args):
             })
         train_batch = batch
         
+        acc_per_class = correct_per_class / total_per_class
+        print(f'########################################################################################################################')
+        print(f'##############################################   TRAIN ACCURACY  SCORE   ###############################################')
+        print(f'#----------------------------------------------------------------------------------------------------------------------#')
+        for i in range(TRAIN.CLASS_N):
+            _start = '#' if i%3==0 else ''
+            _end = '||' if i%3!=2 else '#\n'
+            print(f'{_start} {LABEL_KOR[i]:>24s} : {acc_per_class[i]:0.2f}  {total_per_class[i]:5.0f} ', end=_end)
+        print()
+        print(f'########################################################################################################################')
+        
         if args.for_submission:
             total_val_loss = 0
             total_val_acc = 0
             val_batch = 0
         else:
             tqdm_dataset = tqdm(enumerate(val_dataloader))
-            training = False
+            correct_per_class = np.zeros(TRAIN.CLASS_N)
+            total_per_class = np.zeros(TRAIN.CLASS_N)
             for batch, batch_item in tqdm_dataset:
-                batch_loss, batch_acc = train_step(model, criterion, optimizer, batch_item, training, 
-                                                   preprocess=preprocessor, metric_function=metric_function)
+                batch_loss, batch_acc, batch_correct, batch_total = valid_step(model, criterion, optimizer, batch_item, 
+                                                                               preprocess=preprocessor, metric_function=metric_function, num_class=len(correct_per_class))
                 total_val_loss += batch_loss
                 total_val_acc += batch_acc
+                
+                correct_per_class += batch_correct
+                total_per_class += batch_total
                 
                 tqdm_dataset.set_postfix({
                     'Epoch': epoch + 1,
@@ -288,6 +326,18 @@ def main(args):
                     'Mean Val Loss' : '{:06f}'.format(total_val_loss/(batch+1)),
                     'Mean Val F-1' : '{:06f}'.format(total_val_acc/(batch+1))
                 })
+            
+            acc_per_class = correct_per_class / total_per_class
+            print(f'########################################################################################################################')
+            print(f'##############################################   VALID ACCURACY  SCORE   ###############################################')
+            print(f'#----------------------------------------------------------------------------------------------------------------------#')
+            for i in range(TRAIN.CLASS_N):
+                _start = '#' if i%3==0 else ''
+                _end = '||' if i%3!=2 else '#\n'
+                print(f'{_start} {LABEL_KOR[i]:>24s} : {acc_per_class[i]:0.2f}  {total_per_class[i]:5.0f} ', end=_end)
+            print()
+            print(f'########################################################################################################################')
+                
             val_batch = batch
         
         scheduler_step(scheduler, args.scheduler, 
@@ -322,14 +372,10 @@ def main(args):
             torch.save(model, f'{TRAIN.SAVE_PATH}/model_min_loss.pt')
         
         if ((epoch+1) % config.TRAIN.SAVE_PERIOD == 0) or (epoch+1 == TRAIN.EPOCHS):
-            torch.save(model, f'{TRAIN.SAVE_PATH}/model_{epoch+1}.pt')
-            torch.save({'train_loss':loss_plot, 'val_loss':val_loss_plot,
-                        'train_f1':metric_plot, 'val_f1':val_metric_plot},
-                        f'{TRAIN.SAVE_PATH}/train_history.pt')
-            torch.save(scheduler.state_dict(),
-                        f'{TRAIN.SAVE_PATH}/scheduler_states.pt')
-            torch.save(optimizer.state_dict(),
-                        f'{TRAIN.SAVE_PATH}/optimizer_states.pt')
+            save_epoch(TRAIN, epoch, model, optimizer, scheduler, 
+                       {'train_loss':loss_plot, 'val_loss':val_loss_plot,
+                        'train_f1':metric_plot, 'val_f1':val_metric_plot}
+                       )
             
 if __name__=='__main__':
     
@@ -344,6 +390,8 @@ if __name__=='__main__':
                         type=str, default='none')
     
     parser.add_argument('-smooth','--smoothing',
+                        type=float, default=0)
+    parser.add_argument('-y','--gamma',
                         type=float, default=0)
     parser.add_argument('-s','--for_submission', action='store_true')
     

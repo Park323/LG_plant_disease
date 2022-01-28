@@ -38,7 +38,7 @@ class CustomDataset(Dataset):
                 json_file = json.load(f)
         
             img = cv2.imread(image_path)
-            img = self.preprocess.img_processing(img=img, labels=json_file)
+            img = self.preprocess.img_processing(img=img, labels=json_file, Train=True)
             
             crop = json_file['annotations']['crop']
             disease = json_file['annotations']['disease']
@@ -53,7 +53,7 @@ class CustomDataset(Dataset):
             }
         else:
             img = cv2.imread(image_path)
-            img = self.preprocess.img_processing(img=img)
+            img = self.preprocess.img_processing(img=img, Train=False)
             
             return {
                 'img' : torch.tensor(img, dtype=torch.float32),

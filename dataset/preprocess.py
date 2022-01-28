@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import cv2, pickle, json
 import torch
+from torchvision.transforms import transforms
 
 # area_dict = {'1':'열매','2':'꽃','3':'잎','4':'가지','5':'줄기','6':'뿌리','7':'해충'}
 # grow_dict = {'11':'유묘기', '12':'생장기', '13':'착화/과실기', 
@@ -18,12 +19,38 @@ crop_dict = {'1':'딸기','2':'토마토','3':'파프리카','4':'오이','5':'�
 #                 '4':{'a3':'오이노균병','a4':'오이흰가루병','b1':'냉해피해','b6':'다량원소결핍 (N)','b7':'다량원소결핍 (P)','b8':'다량원소결핍 (K)'},                     # 3,4,13,18,19,20
 #                 '5':{'a7':'고추탄저병','a8':'고추흰가루병','b3':'칼슘결핍','b6':'다량원소결핍 (N)','b7':'다량원소결핍 (P)','b8':'다량원소결핍 (K)'},                     # 7,8,15,18,19,20
 #                 '6':{'a11':'시설포도탄저병','a12':'시설포도노균병','b4':'일소피해','b5':'축과병'}}                                                                     # 11,12,16,17
-disease_dict = {'1':{},                                                                                                          # 1,2,13,18,19,20
-                '2':{'a5':'토마토흰가루병'},                                                                                      # 5,6,14,15,18,19,20
-                '3':{'a9':'파프리카흰가루병','b3':'칼슘결핍','b6':'다량원소결핍 (N)','b7':'다량원소결핍 (P)','b8':'다량원소결핍 (K)'},# 9,10,15,18,19,20
-                '4':{},                                                                                                          # 3,4,13,18,19,20
-                '5':{'a7':'고추탄저병','b6':'다량원소결핍 (N)','b7':'다량원소결핍 (P)','b8':'다량원소결핍 (K)'},                     # 7,8,15,18,19,20
-                '6':{'a11':'시설포도탄저병','a12':'시설포도노균병','b4':'일소피해','b5':'축과병'}}  
+disease_dict = {'1':{},
+                '2':{'a5':['2']}, #'토마토흰가루병'                                                                                     # 1
+                '3':{'a9':['1','2','3'], #'파프리카흰가루병'
+                     'b3':['1'], #'칼슘결핍',
+                     'b6':['1'], #다량원소결핍 (N)',
+                     'b7':['1'], #'다량원소결핍 (P)',
+                     'b8':['1']}, #다량원소결핍 (K)'},# 3,6,9,10,11
+                '4':{},
+                '5':{'a7':['2'], #'고추탄저병',
+                     'b6':['1'], #'다량원소결핍 (N)',
+                     'b7':['1'], #'다량원소결핍 (P)',
+                     'b8':['1']}, #'다량원소결핍 (K)'},                     # 2,9,10,11
+                '6':{'a11':['1','2'], #'시설포도탄저병',
+                     'a12':['1','2'], #'시설포도노균병',
+                     'b4':['1','3'], #'일소피해',
+                     'b5':['1']}} #'축과병'}}                                   # 4,5,7,8
+disease_name = {'1':{},
+                '2':{'a5':'흰가루병'},
+                '3':{'a9':'흰가루병',
+                     'b3':'칼슘결핍',
+                     'b6':'질소결핍',
+                     'b7':'인결핍',
+                     'b8':'칼륨결핍'},
+                '4':{},
+                '5':{'a7':'탄저병',
+                     'b6':'질소결핍',
+                     'b7':'인결핍',
+                     'b8':'칼륨결핍'},
+                '6':{'a11':'탄저병',
+                     'a12':'노균병',
+                     'b4':'일소피해',
+                     'b5':'축과병'}}
 disease_dict2= {'00':'정상', 
                 'a5':'토마토흰가루병', 'a7':'고추탄저병',
                 'a9':'파프리카흰가루병', 'a11':'시설포도탄저병', 'a12':'시설포도노균병',
@@ -33,18 +60,18 @@ risk_dict = {'1':'초기','2':'중기','3':'말기'}
 risk_dict2 = {'0':'정상','1':'초기','2':'중기','3':'말기'}
 
 partial_dict = {key:value for key, value in [('<S>','StartToken'),
+                                             ('<E>','EndToken'),
                                              *crop_dict.items(), 
                                              *[('#'+idx, disease) for idx, disease in disease_dict2.items()], 
-                                             *[('##'+idx, risk) for idx, risk in risk_dict2.items()],
-                                             ('<E>','EndToken')]}
+                                             *[('##'+idx, risk) for idx, risk in risk_dict2.items()]]}
 
 label_description = {}
 for key, value in disease_dict.items():
     label_description[f'{key}_00_0'] = f'{crop_dict[key]}_정상'
-    for disease_code in value:
-        for risk_code in risk_dict:
+    for disease_code, risk_list in value.items():
+        for risk_code in risk_list:
             label = f'{key}_{disease_code}_{risk_code}'
-            label_description[label] = f'{crop_dict[key]}_{disease_dict[key][disease_code]}_{risk_dict[risk_code]}'
+            label_description[label] = f'{crop_dict[key]}_{disease_name[key][disease_code]}_{risk_dict[risk_code]}'
 
 def refine_csv(df):
     
@@ -69,6 +96,16 @@ class Processor():
         self.label_dict = {key:idx for idx, key in enumerate(label_description)}
         self.partial_dict = {key:idx for idx, key in enumerate(partial_dict)}
         
+        self.img_transforms = transforms.Compose([
+            transforms.RandomHorizontalFlip(),
+            transforms.ColorJitter(brightness=0.2,
+                                   contrast=0.15,
+                                   saturation=0.1),
+            transforms.RandomAffine(30, shear=10, 
+                                    interpolation=transforms.InterpolationMode.BILINEAR),
+            transforms.RandomResizedCrop((224,224)),
+        ])
+        
     def label_encoder(self, label, *args, **kwargs):
         pass
     
@@ -81,13 +118,18 @@ class Processor():
     def initialize(self):
         pass
 
-    def img_processing(self, img, **kwargs):
+    def img_processing(self, img, Train=True, **kwargs):
         # if kwargs['labels']:
         #     x, h, y, w = list(map(int,kwargs['labels']['annotations']['bbox'][0].values()))
         #     img = img[x:x+h,y:y+w]
-        img = cv2.resize(img, dsize=(224, 224), interpolation=cv2.INTER_AREA)
         img = img.astype(np.float32)/255
-        img = np.transpose(img, (2,0,1))
+        img = transforms.ToTensor()(img)
+        img = transforms.Normalize(img.mean(), img.std())(img)
+        if Train:
+            img = self.img_transforms(img)
+        img = transforms.Resize(224)(img)
+        # img = cv2.resize(img, dsize=(224, 224), interpolation=cv2.INTER_AREA)
+        # img = np.transpose(img, (2,0,1))
         return img
 
     def json_processing(self, labels, **kwargs):
