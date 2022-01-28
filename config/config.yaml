@@ -1,19 +1,18 @@
 ####   CONFIGURATION   ####
 DATA :
-  DATA_PATH  : data/sample
+  DATA_ROOT  : data
+  IMAGE_PATH  : sample
+  TEST_FOLDER : sample
   TRAIN_PATH : Train.txt
   VALID_PATH : Valid.txt
   TEST_PATH  : Test.txt
   VALID_RATE : 0.2
 
 TRAIN :
-  BATCH_SIZE    : 256
-  CLASS_N       : 32 ## len(label_encoder)
-  LEARNING_RATE : 0.0001
-  EMBEDDING_DIM : 512
-  NUM_FEATURES  : 9 ## len(csv_feature_dict)
-  MAX_LEN       : 144 ## 24*6
-  DROPOUT_RATE  : 0.1
-  EPOCHS        : 30
-  VISION_PRETRAIN : True
-  SAVE_PATH     : output/test0
+  NUM_WORKER    : 4
+  SAVE_PERIOD   : 20
+
+TEST :
+  BATCH_SIZE    : 64
+  NUM_WORKER    : 4
+  SAMPLE_PATH   : sample_submission.csv

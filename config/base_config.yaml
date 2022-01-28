@@ -1,0 +1,12 @@
+####   CONFIGURATION   ####
+TRAIN :
+  BATCH_SIZE    : 4
+  CLASS_N       : 111
+  MAX_LEN       : 144
+  LEARNING_RATE : 0.0001
+  EMBEDDING_DIM : 512
+  NUM_FEATURES  : 9 ## len(csv_feature_dict)
+  DROPOUT_RATE  : 0.1
+  EPOCHS        : 30
+  VISION_PRETRAIN : True
+  SAVE_PATH     : output/test0

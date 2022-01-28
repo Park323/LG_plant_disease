@@ -4,3 +4,4 @@ config 폴더에는 모델 설정 및 train/eval/submission 등 전과정에 대
 
 config  
 ㄴconfig.yaml
+ㄴbase_config.yaml - base_model용 parameters  

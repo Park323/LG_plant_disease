@@ -1,0 +1,9 @@
+####   CONFIGURATION   ####
+TRAIN :
+  BATCH_SIZE    : 256
+  CLASS_N       : 111
+  LEARNING_RATE : 0.0001
+  EPOCHS        : 5
+  VISION_PRETRAIN : True
+  SAVE_PATH     : output/lab0
+  CLASSIFIER    : model/crop_classifier.pt

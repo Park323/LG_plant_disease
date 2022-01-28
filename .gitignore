@@ -1,6 +1,7 @@
 # User-Defined
 /data
-
+/output/*
+/model/yolov5
 
 
 # Byte-compiled / optimized / DLL files
