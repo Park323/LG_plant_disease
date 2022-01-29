@@ -45,7 +45,7 @@ def interpolate(x, avg_csv):
 
 def step_1(txt_path):
     with open(txt_path,'r') as f:
-        df_paths = [f"{path}/{path.split('/')[-1]}.csv" for path in f.readlines()]
+        df_paths = [f"{path.strip()}/{path.split('/')[-1].strip()}.csv" for path in f.readlines()]
     # df_paths = glob('data/sample/*/*.csv')
 
     statistics = pd.read_csv('dataset/csv_statistics.csv', index_col=0)
@@ -67,7 +67,7 @@ def step_1(txt_path):
 
 def step_2(txt_path):
     with open(txt_path,'r') as f:
-        df_paths = [f"{path}/{path.split('/')[-1]}_.csv" for path in f.readlines()]
+        df_paths = [f"{path.strip()}/{path.split('/')[-1].strip()}_.csv" for path in f.readlines()]
     for path in tqdm(df_paths):
         df = pd.read_csv(path)
         if df['측정시각'][0] == df['측정시각'][1] or df['측정시각'][1] == df['측정시각'][2]:
@@ -78,7 +78,7 @@ def step_2(txt_path):
 
 def main(args):
     
-    txt_path = 'data' + ('Test' if args.test else 'Train') + '.txt'
+    txt_path = f"{args.data}/{'Test' if args.test else 'Train'}.txt"
     
     if args.step == 1:
         step_1(txt_path)
@@ -87,8 +87,9 @@ def main(args):
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser()
+    parser.add_argument('-d','--data', required=True)
     parser.add_argument('-t','--test', action='store_true')
-    parser.add_argument('-s','--step', default=1, required=True)
+    parser.add_argument('-s','--step', default=1, type=int, required=True)
     args = parser.parse_args()
     
     main(args)
