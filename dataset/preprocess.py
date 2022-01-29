@@ -97,13 +97,6 @@ class Processor():
         self.partial_dict = {key:idx for idx, key in enumerate(partial_dict)}
         
         self.img_transforms = transforms.Compose([
-            transforms.RandomHorizontalFlip(),
-            transforms.ColorJitter(brightness=0.2,
-                                   contrast=0.15,
-                                   saturation=0.1),
-            transforms.RandomAffine(30, shear=10, 
-                                    interpolation=transforms.InterpolationMode.BILINEAR),
-            transforms.RandomResizedCrop((224,224)),
         ])
         
     def label_encoder(self, label, *args, **kwargs):
@@ -119,17 +112,12 @@ class Processor():
         pass
 
     def img_processing(self, img, Train=True, **kwargs):
-        # if kwargs['labels']:
-        #     x, h, y, w = list(map(int,kwargs['labels']['annotations']['bbox'][0].values()))
-        #     img = img[x:x+h,y:y+w]
-        img = img.astype(np.float32)/255
         img = transforms.ToTensor()(img)
-        img = transforms.Normalize(img.mean(), img.std())(img)
         if Train:
             img = self.img_transforms(img)
-        img = transforms.Resize(224)(img)
-        # img = cv2.resize(img, dsize=(224, 224), interpolation=cv2.INTER_AREA)
-        # img = np.transpose(img, (2,0,1))
+        img = transforms.Resize((224,224))(img)
+        img = img/255
+        img = transforms.Normalize(img.mean(), img.std())(img)
         return img
 
     def json_processing(self, labels, **kwargs):
@@ -306,9 +294,35 @@ class ViT_Processor(Base_Processor):
     def __init__(self, config):
         super().__init__(config)
         
+        self.img_transforms = transforms.Compose([
+            transforms.RandomVerticalFlip(),
+            transforms.RandomHorizontalFlip(),
+            transforms.ColorJitter(brightness=0.2,
+                                   contrast=0.15,
+                                   saturation=0.1),
+            transforms.RandomAffine(90, shear=10, 
+                                    interpolation=transforms.InterpolationMode.BILINEAR)
+        ])
+    
+    def img_processing(self, img, Train=True, **kwargs):
+        img = transforms.ToTensor()(img)
+        img = transforms.CenterCrop((512,740))(img)
+        if Train:
+            img = self.img_transforms(img)
+        img = transforms.Normalize(img.mean(), img.std())(img)
+        return img
+        
 class Seq_Processor(Base_Processor):
     def __init__(self, config):
         super().__init__(config)
+        self.img_transforms = transforms.Compose([
+            transforms.RandomHorizontalFlip(),
+            transforms.ColorJitter(brightness=0.2,
+                                   contrast=0.15,
+                                   saturation=0.1),
+            transforms.RandomAffine(30, shear=10, 
+                                    interpolation=transforms.InterpolationMode.BILINEAR)
+        ])
         
     def super_encoder(self, label, *args, **kwargs):
         return super().label_encoder(label, *args, **kwargs)
@@ -319,3 +333,11 @@ class Seq_Processor(Base_Processor):
                                self.partial_encoder(c), self.partial_encoder('#'+d), self.partial_encoder('##'+r), 
                                self.partial_encoder('<E>')], dtype=torch.long)
         return label
+    
+    def img_processing(self, img, Train=True, **kwargs):
+        img = transforms.ToTensor()(img)
+        if Train:
+            img = self.img_transforms(img)
+        img = img/255
+        img = transforms.Normalize(img.mean(), img.std())(img)
+        return img

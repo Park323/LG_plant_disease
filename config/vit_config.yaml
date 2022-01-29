@@ -12,7 +12,10 @@ TRAIN :
   PRE_PATH      : data/B_16.pth
   SAVE_PATH     : output/test0
 
-  IMAGE_SIZE  : 256
+  IMAGE_SIZE  : 512
+  IMAGE_WIDTH : 512
+  IMAGE_HEIGHT: 740
+  PATCHES     : 16
   D_MODEL     : 512
   N_HEAD      : 8
   FF_DIM      : 2048

@@ -155,7 +155,14 @@ class ViT_tuned(nn.Module):
             x = self.fc(x)  # b,num_classes
         x = F.log_softmax(x, dim=-1)
         return x
-        
+    
+class MyViT(nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        self.vit = ViT(config)
+    def forward(self, img, csv_features, *args, **kwargs):
+        outputs = self.vit(img)
+        return outputs
 
 class PositionalEmbedding1D(nn.Module):
     """Adds (optionally learned) positional embeddings to the inputs."""
@@ -211,16 +218,23 @@ class ViT(nn.Module):
         resize_positional_embedding=False,
     ):
         super().__init__()
-
         # Configuration
         if name is None:
             check_msg = 'must specify name of pretrained model'
             assert not pretrained, check_msg
             assert not resize_positional_embedding, check_msg
-            if num_classes is None:
-                num_classes = 1000
-            if image_size is None:
-                image_size = 384
+            # if num_classes is None:
+            #     num_classes = 1000
+            # if image_size is None:
+            #     image_size = 384
+            image_size = (CONFIG['IMAGE_HEIGHT'], CONFIG['IMAGE_WIDTH'])
+            num_classes = CONFIG['CLASS_N']
+            patches = CONFIG['PATCHES']
+            dim = CONFIG['D_MODEL']
+            ff_dim = CONFIG['FF_DIM']
+            num_heads = CONFIG['N_HEAD']
+            num_layers = CONFIG.ENCODER['NUM_LAYER']
+            dropout_rate = CONFIG['DROP_OUT']
         else:  # load pretrained model
             assert name in PRETRAINED_MODELS.keys(), \
                 'name should be in: ' + ', '.join(PRETRAINED_MODELS.keys())

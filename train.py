@@ -14,7 +14,7 @@ from model.base_model import CNN2RNN
 from model.jk_model import DrJeonko
 from model.lab_model import *
 from model.dense_model import DenseNet
-from model.vit_model import ViT_tuned, ImToSeqTransformer
+from model.vit_model import MyViT, ViT_tuned, ImToSeqTransformer
 from utils.scheduler import CosineAnnealingWarmUpRestarts
 from utils.metric import *
 
@@ -139,7 +139,8 @@ def get_model(config, model_name=None, **kwargs):
     elif model_name=='drj':
         return DrJeonko(config)
     elif model_name=='vit':
-        return ViT_tuned(config)
+        # return ViT_tuned(config)
+        return MyViT(config)
     elif model_name=='imseq':
         return ImToSeqTransformer(config)
 
