@@ -55,6 +55,10 @@ def step_1(txt_path):
     statistics = pd.concat([statistics['mean'], _stats]).to_frame()
 
     for path in tqdm(df_paths):
+        # 이미 존재할 경우 건너뛰기
+        if os.path.exists(path.replace('.csv', '_.csv')):
+            continue
+        
         df = pd.read_csv(path)
         df = df[['측정시각', *use_cols]].replace(['-',0], np.NaN)
         df[use_cols] = df[use_cols].astype(float)
@@ -70,7 +74,8 @@ def step_2(txt_path):
         df_paths = [f"{path.strip()}/{path.split('/')[-1].strip()}_.csv" for path in f.readlines()]
     for path in tqdm(df_paths):
         df = pd.read_csv(path)
-        if df['측정시각'][0] == df['측정시각'][1] or df['측정시각'][1] == df['측정시각'][2]:
+        if len(df)>2 and (df['측정시각'][0] == df['측정시각'][1] or df['측정시각'][1] == df['측정시각'][2]):
+            print('did')
             df = df.loc[::2]
             df.to_csv(path, index=False)
         else:

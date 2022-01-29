@@ -229,7 +229,7 @@ class ViT(nn.Module):
             #     image_size = 384
             image_size = (CONFIG['IMAGE_HEIGHT'], CONFIG['IMAGE_WIDTH'])
             num_classes = CONFIG['CLASS_N']
-            patches = CONFIG['PATCHES']
+            patches = (CONFIG['PATCH_HEIGHT'], CONFIG['PATCH_WIDTH'])
             dim = CONFIG['D_MODEL']
             ff_dim = CONFIG['FF_DIM']
             num_heads = CONFIG['N_HEAD']
