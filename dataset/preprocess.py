@@ -306,7 +306,8 @@ class ViT_Processor(Base_Processor):
     
     def img_processing(self, img, Train=True, **kwargs):
         img = transforms.ToTensor()(img)
-        img = transforms.CenterCrop((512,740))(img)
+        img = transforms.CenterCrop((512,736))(img)
+        img = transforms.Resize((256,368))(img)
         if Train:
             img = self.img_transforms(img)
         img = transforms.Normalize(img.mean(), img.std())(img)
