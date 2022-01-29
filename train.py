@@ -151,8 +151,8 @@ def get_scheduler(optimizer, sch_name='none', lr=0):
         return torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer=optimizer, factor=0.5,
                                                            patience=3, mode='max')
     elif sch_name == 'cosine':
-        return CosineAnnealingWarmUpRestarts(optimizer, T_0=15, T_mult=2, 
-                                                  eta_max=lr, T_up=3, gamma=0.5)
+        return CosineAnnealingWarmUpRestarts(optimizer, T_0=15, T_mult=2,
+                                             eta_max=lr, T_up=3, gamma=0.5)
 
 def scheduler_step(scheduler, sch_name='none', epoch=None, value=None):
     if sch_name == 'none':
@@ -169,7 +169,17 @@ def save_epoch(config, epoch, model, optimizer, scheduler, hist):
         torch.save(scheduler.state_dict(), f'{config.SAVE_PATH}/scheduler_states.pt')
         torch.save(optimizer.state_dict(),
                     f'{config.SAVE_PATH}/optimizer_states.pt')
-            
+
+def visualize_score(num_class, accuracy, total, msg:str):
+    print(f'###########################################################################################################################################')
+    print(f'########################################################   {msg:^20s}   ###################################################################')
+    print(f'#-----------------------------------------------------------------------------------------------------------------------------------------#')
+    for i in range(num_class):
+        _start = '#' if i%3==0 else ''
+        _end = '||' if i%3!=2 else '#\n'
+        print(f'{_start} {LABEL_KOR[i]:>30s} : {accuracy[i]:0.2f}  {total[i]:5.0f} ', end=_end)
+    print()
+    print(f'############################################################################################################################################')      
     
 def main(args):
     config = OmegaConf.load(f'config/config.yaml')
@@ -187,7 +197,7 @@ def main(args):
     ##########################      DataLoader 정의     #########################
     print('Data Loading...')
     
-    preprocessor = get_preprocessor(config, args.model_name)
+    preprocessor = get_preprocessor(TRAIN, args.model_name)
         
     if os.path.exists(f'{DATA.DATA_ROOT}/{preprocessor.dict_name}'):
         preprocessor.load_dictionary(f'{DATA.DATA_ROOT}/{preprocessor.dict_name}')
@@ -245,6 +255,8 @@ def main(args):
         # Argument에 따라 model 변경
         model = get_model(TRAIN, model_name=args.model_name)
 
+    print('MODEL PARAMETER # :', sum(p.numel() for p in model.parameters() if p.requires_grad))
+
     model = model.to(DEVICE)
     optimizer = torch.optim.Adam(model.parameters(), lr=TRAIN.LEARNING_RATE)
     if args.scheduler == 'cosine':
@@ -294,15 +306,6 @@ def main(args):
         train_batch = batch
         
         acc_per_class = correct_per_class / total_per_class
-        print(f'########################################################################################################################')
-        print(f'##############################################   TRAIN ACCURACY  SCORE   ###############################################')
-        print(f'#----------------------------------------------------------------------------------------------------------------------#')
-        for i in range(TRAIN.CLASS_N):
-            _start = '#' if i%3==0 else ''
-            _end = '||' if i%3!=2 else '#\n'
-            print(f'{_start} {LABEL_KOR[i]:>24s} : {acc_per_class[i]:0.2f}  {total_per_class[i]:5.0f} ', end=_end)
-        print()
-        print(f'########################################################################################################################')
         
         if args.for_submission:
             total_val_loss = 0
@@ -310,16 +313,16 @@ def main(args):
             val_batch = 0
         else:
             tqdm_dataset = tqdm(enumerate(val_dataloader))
-            correct_per_class = np.zeros(TRAIN.CLASS_N)
-            total_per_class = np.zeros(TRAIN.CLASS_N)
+            val_correct_per_class = np.zeros(TRAIN.CLASS_N)
+            val_total_per_class = np.zeros(TRAIN.CLASS_N)
             for batch, batch_item in tqdm_dataset:
                 batch_loss, batch_acc, batch_correct, batch_total = valid_step(model, criterion, optimizer, batch_item, 
                                                                                preprocess=preprocessor, metric_function=metric_function, num_class=len(correct_per_class))
                 total_val_loss += batch_loss
                 total_val_acc += batch_acc
                 
-                correct_per_class += batch_correct
-                total_per_class += batch_total
+                val_correct_per_class += batch_correct
+                val_total_per_class += batch_total
                 
                 tqdm_dataset.set_postfix({
                     'Epoch': epoch + 1,
@@ -328,16 +331,7 @@ def main(args):
                     'Mean Val F-1' : '{:06f}'.format(total_val_acc/(batch+1))
                 })
             
-            acc_per_class = correct_per_class / total_per_class
-            print(f'########################################################################################################################')
-            print(f'##############################################   VALID ACCURACY  SCORE   ###############################################')
-            print(f'#----------------------------------------------------------------------------------------------------------------------#')
-            for i in range(TRAIN.CLASS_N):
-                _start = '#' if i%3==0 else ''
-                _end = '||' if i%3!=2 else '#\n'
-                print(f'{_start} {LABEL_KOR[i]:>24s} : {acc_per_class[i]:0.2f}  {total_per_class[i]:5.0f} ', end=_end)
-            print()
-            print(f'########################################################################################################################')
+            val_acc_per_class = val_correct_per_class / val_total_per_class
                 
             val_batch = batch
         
@@ -368,6 +362,13 @@ def main(args):
         
         if total_val_acc/(val_batch+1) == max(val_metric_plot):
             torch.save(model, f'{TRAIN.SAVE_PATH}/model_best_f1.pt')
+            
+            # Visualize Result
+            if total_val_acc/(val_batch+1) > 0.8:
+                visualize_score(TRAIN.CLASS_N, acc_per_class, total_per_class, 'TRAIN ACCURACY SCORE')
+                if val_batch:
+                    visualize_score(TRAIN.CLASS_N, val_acc_per_class, val_total_per_class, 'VALID ACCURACY SCORE')
+        
         
         if total_val_loss.item()/(val_batch+1) == min(val_loss_plot):
             torch.save(model, f'{TRAIN.SAVE_PATH}/model_min_loss.pt')

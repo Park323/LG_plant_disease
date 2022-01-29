@@ -23,7 +23,8 @@ class CustomDataset(Dataset):
         
         json_path = f'{file}/{file_name}.json'
         image_path = f'{file}/{file_name}.jpg'
-        csv_path = f'{file}/{file_name}.csv'
+        # csv_path = f'{file}/{file_name}.csv'
+        csv_path = f'{file}/{file_name}_.csv'
         
         if self.csv_feature_check[i] == 0:
             df = pd.read_csv(csv_path)

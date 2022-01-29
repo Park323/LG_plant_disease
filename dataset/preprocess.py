@@ -207,8 +207,8 @@ class Basic_CSV_Processor(Base_Processor):
             df[col] = df[col] - csv_feature_dict[col][0]
             df[col] = df[col] / (csv_feature_dict[col][1]-csv_feature_dict[col][0])
         # zero padding
-        pad = np.zeros((config.TRAIN.MAX_LEN, len(df.columns)))
-        length = min(config.TRAIN.MAX_LEN, len(df))
+        pad = np.zeros((config.MAX_LEN, len(df.columns)))
+        length = min(config.MAX_LEN, len(df))
         pad[-length:] = df.to_numpy()[-length:]
         # transpose to sequential data
         csv_feature = pad.T
@@ -295,14 +295,21 @@ class ViT_Processor(Base_Processor):
         super().__init__(config)
         
         self.img_transforms = transforms.Compose([
-            transforms.RandomVerticalFlip(),
             transforms.RandomHorizontalFlip(),
-            transforms.ColorJitter(brightness=0.2,
-                                   contrast=0.15,
-                                   saturation=0.1),
-            transforms.RandomAffine(90, shear=10, 
-                                    interpolation=transforms.InterpolationMode.BILINEAR)
+            transforms.ColorJitter(brightness=0.3,
+                                   contrast=0.3,
+                                   saturation=0.3),
+            transforms.RandomAffine(180, shear=10) 
+                                    # interpolation=transforms.InterpolationMode.BILINEAR)
         ])
+        
+    def csv_processing(self, df, **kwargs):
+        feat = df.iloc[:,1:].to_numpy()
+        feat = feat.T
+        # Pad
+        outputs = np.zeros((feat.shape[0],self.config.MAX_LEN))
+        outputs[:,:feat.shape[1]] = feat[:,:self.config.MAX_LEN]
+        return outputs
     
     def img_processing(self, img, Train=True, **kwargs):
         img = transforms.ToTensor()(img)
@@ -316,15 +323,16 @@ class ViT_Processor(Base_Processor):
 class Seq_Processor(Base_Processor):
     def __init__(self, config):
         super().__init__(config)
+        
         self.img_transforms = transforms.Compose([
             transforms.RandomHorizontalFlip(),
-            transforms.ColorJitter(brightness=0.2,
-                                   contrast=0.15,
-                                   saturation=0.1),
-            transforms.RandomAffine(30, shear=10, 
-                                    interpolation=transforms.InterpolationMode.BILINEAR)
+            transforms.ColorJitter(brightness=0.3,
+                                   contrast=0.3,
+                                   saturation=0.3),
+            transforms.RandomAffine(180, shear=10) 
+                                    # interpolation=transforms.InterpolationMode.BILINEAR)
         ])
-        
+    
     def super_encoder(self, label, *args, **kwargs):
         return super().label_encoder(label, *args, **kwargs)
         
@@ -337,8 +345,9 @@ class Seq_Processor(Base_Processor):
     
     def img_processing(self, img, Train=True, **kwargs):
         img = transforms.ToTensor()(img)
+        img = transforms.CenterCrop((512,736))(img)
+        img = transforms.Resize((224,224))(img)
         if Train:
             img = self.img_transforms(img)
-        img = img/255
         img = transforms.Normalize(img.mean(), img.std())(img)
         return img

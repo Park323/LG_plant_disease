@@ -83,7 +83,7 @@ def step_2(txt_path):
 
 def main(args):
     
-    txt_path = f"{args.data}/{'Test' if args.test else 'Train'}.txt"
+    txt_path = f"{args.data}/{'Test' if args.test else 'Valid' if args.valid else 'Train'}.txt"
     
     if args.step == 1:
         step_1(txt_path)
@@ -94,6 +94,7 @@ if __name__=='__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-d','--data', required=True)
     parser.add_argument('-t','--test', action='store_true')
+    parser.add_argument('-v','--valid', action='store_true')
     parser.add_argument('-s','--step', default=1, type=int, required=True)
     args = parser.parse_args()
     

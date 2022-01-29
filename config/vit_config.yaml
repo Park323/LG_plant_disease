@@ -2,22 +2,23 @@
 TRAIN :
   BATCH_SIZE    : 4
   CLASS_N       : 25
-  MAX_LEN       : 144
   LEARNING_RATE : 0.0001
   EMBEDDING_DIM : 512
-  NUM_FEATURES  : 9 ## len(csv_feature_dict)
   DROPOUT_RATE  : 0.1
   EPOCHS        : 30
   VISION_PRETRAIN : True
   PRE_PATH      : data/B_16.pth
   SAVE_PATH     : output/test0
 
+  ### CSV ###
+  MAX_LEN       : 294
+  NUM_FEATURES  : 13
+
+  ### IMAGE ###
   IMAGE_SIZE  : 256
   IMAGE_WIDTH : 368
   IMAGE_HEIGHT: 256
   PATCHES     : 16
-  PATCH_WIDTH : 22
-  PATCH_HEIGHT: 16
   D_MODEL     : 512
   N_HEAD      : 8
   FF_DIM      : 2048
