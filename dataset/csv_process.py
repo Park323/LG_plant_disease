@@ -75,7 +75,6 @@ def step_2(txt_path):
     for path in tqdm(df_paths):
         df = pd.read_csv(path)
         if len(df)>2 and (df['측정시각'][0] == df['측정시각'][1] or df['측정시각'][1] == df['측정시각'][2]):
-            print('did')
             df = df.loc[::2]
             df.to_csv(path, index=False)
         else:

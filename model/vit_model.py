@@ -159,7 +159,8 @@ class ViT_tuned(nn.Module):
 class MyViT(nn.Module):
     def __init__(self, config):
         super().__init__()
-        self.vit = ViT(config, add_csv=True)
+        self.csv_on = config.USE_CSV
+        self.vit = ViT(config, add_csv=self.csv_on)
         self.csv_extract = ResNet(config)
         self.norm = nn.LayerNorm(config.D_MODEL, eps=1e-6)
         self.fc = nn.Linear(config.D_MODEL, config.CLASS_N)
@@ -167,12 +168,15 @@ class MyViT(nn.Module):
     def forward(self, img, csv_features, *args, **kwargs):
         # return self.vit(img)
         
-        csv_feat = self.csv_extract(csv_features) # b, 1, d
-        
         b, c, fh, fw = img.shape
         img = self.vit.patch_embedding(img)  # b,d,gh,gw
         img = img.flatten(2).transpose(1, 2)  # b,gh*gw,d
-        feats = torch.cat((self.vit.class_token.expand(b, -1, -1), csv_feat.permute(0,2,1), img), dim=1)  # b,gh*gw+1+1,d
+        
+        if self.csv_on:
+            csv_feat = self.csv_extract(csv_features) # b, 1, d
+            feats = torch.cat((self.vit.class_token.expand(b, -1, -1), csv_feat.permute(0,2,1), img), dim=1)  # b,gh*gw+1+1,d
+        else:
+            feats = torch.cat((self.vit.class_token.expand(b, -1, -1), img), dim=1)  # b,gh*gw+1,d
         feats = self.vit.positional_embedding(feats)  # b,gh*gw+1+1,d 
         output = self.vit.transformer(feats)  # b,gh*gw+1+1,d
         output = self.norm(output)[:,0] # b,d

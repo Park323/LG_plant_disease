@@ -11,6 +11,7 @@ TRAIN :
   SAVE_PATH     : output/test0
 
   ### CSV ###
+  USE_CSV       : True
   MAX_LEN       : 294
   NUM_FEATURES  : 13
 
