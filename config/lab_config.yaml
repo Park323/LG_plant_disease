@@ -1,9 +1,36 @@
 ####   CONFIGURATION   ####
 TRAIN :
-  BATCH_SIZE    : 256
-  CLASS_N       : 111
+  BATCH_SIZE    : 4
+  CLASS_N       : 25
   LEARNING_RATE : 0.0001
-  EPOCHS        : 5
+  EMBEDDING_DIM : 512
+  DROPOUT_RATE  : 0.1
+  EPOCHS        : 30
   VISION_PRETRAIN : True
-  SAVE_PATH     : output/lab0
-  CLASSIFIER    : model/crop_classifier.pt
+  PRE_PATH      : data/B_16.pth
+  SAVE_PATH     : output/test0
+
+  ### LAB ###
+  
+
+  ### CSV ###
+  USE_CSV       : True
+  MAX_LEN       : 294
+  NUM_FEATURES  : 13
+  CSV_DROP_RATE : 0.3
+
+  ### IMAGE ###
+  USE_SPOT      : True
+  IMAGE_CHANNEL : 4
+  IMAGE_SIZE  : 256
+  IMAGE_WIDTH : 368
+  IMAGE_HEIGHT: 256
+  PATCHES     : 16
+  D_MODEL     : 512
+  N_HEAD      : 8
+  FF_DIM      : 2048
+  DROP_OUT    : 0.1
+  ENCODER :
+    NUM_LAYER : 6
+  DECODER :
+    NUM_LAYER : 6

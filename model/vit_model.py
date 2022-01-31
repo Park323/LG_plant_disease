@@ -161,6 +161,10 @@ class MyViT(nn.Module):
         super().__init__()
         self.csv_on = config.USE_CSV
         self.vit = ViT(config, add_csv=self.csv_on)
+        self.in_channels = 4 if config.USE_SPOT else 3
+        fh, fw = self.vit.fh, self.vit.fw
+        self.vit.patch_embedding = nn.Conv2d(self.in_channels, config.D_MODEL, 
+                                             kernel_size=(fh, fw), stride=(fh, fw))
         self.csv_extract = ResNet(config)
         self.norm = nn.LayerNorm(config.D_MODEL, eps=1e-6)
         self.fc = nn.Linear(config.D_MODEL, config.CLASS_N)
@@ -277,12 +281,12 @@ class ViT(nn.Module):
 
         # Image and patch sizes
         h, w = as_tuple(image_size)  # image sizes
-        fh, fw = as_tuple(patches)  # patch sizes
-        gh, gw = h // fh, w // fw  # number of patches
+        self.fh, self.fw = as_tuple(patches)  # patch sizes
+        gh, gw = h // self.fh, w // self.fw  # number of patches
         seq_len = gh * gw
 
         # Patch embedding
-        self.patch_embedding = nn.Conv2d(in_channels, dim, kernel_size=(fh, fw), stride=(fh, fw))
+        self.patch_embedding = nn.Conv2d(in_channels, dim, kernel_size=(self.fh, self.fw), stride=(self.fh, self.fw))
 
         # Class token
         if classifier == 'token':

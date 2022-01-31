@@ -35,11 +35,12 @@ class CustomDataset(Dataset):
             csv_feature = self.csv_features[i]
         
         if self.mode == 'train':
+            
+            img = cv2.imread(image_path)
             with open(json_path, 'r') as f:
                 json_file = json.load(f)
-        
-            img = cv2.imread(image_path)
-            img = self.preprocess.img_processing(img=img, labels=json_file, Train=True)
+            json_feature = self.preprocess.json_processing(json_file, image_size=img.shape)
+            img = self.preprocess.img_processing(img=img, Json=json_feature, Train=True)
             
             crop = json_file['annotations']['crop']
             disease = json_file['annotations']['disease']
@@ -49,7 +50,6 @@ class CustomDataset(Dataset):
             return {
                 'img' : torch.tensor(img, dtype=torch.float32),
                 'csv_feature' : torch.tensor(csv_feature, dtype=torch.float32),
-                'json_path' : json_path,
                 'label' : self.preprocess.label_encoder(label, dic=json_file)
             }
         else:

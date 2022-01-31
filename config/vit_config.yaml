@@ -14,8 +14,11 @@ TRAIN :
   USE_CSV       : True
   MAX_LEN       : 294
   NUM_FEATURES  : 13
+  CSV_DROP_RATE : 0.3
 
   ### IMAGE ###
+  USE_SPOT      : True
+  IMAGE_CHANNEL : 4
   IMAGE_SIZE  : 256
   IMAGE_WIDTH : 368
   IMAGE_HEIGHT: 256

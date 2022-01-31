@@ -9,7 +9,7 @@ DATA :
   VALID_RATE : 0.2
 
 TRAIN :
-  NUM_WORKER    : 4
+  NUM_WORKER    : 1
   SAVE_PERIOD   : 20
 
 TEST :

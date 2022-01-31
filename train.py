@@ -90,13 +90,9 @@ def get_preprocessor(config, model_name=None, **kwargs):
     if model_name=='base':
         return preprocess.Basic_CSV_Processor(config)
     elif model_name=='lab':
-        return preprocess.Concat_processor(config)
-    elif model_name=='lab_crop':
-        return preprocess.Concat_processor(config)
+        return preprocess.LAB_Processor(config)
     elif model_name=='dense':
         return preprocess.Dense_Processor(config)
-    elif model_name=='drj':
-        return preprocess.Base_Processor(config)
     elif model_name=='vit':
         return preprocess.ViT_Processor(config)
     elif model_name=='imseq':
@@ -111,11 +107,7 @@ def get_metrics(model_name, **_kwargs):
         pass
     elif model_name=='lab':
         pass
-    elif model_name=='lab_crop':
-        pass
     elif model_name=='dense':
-        pass
-    elif model_name=='drj':
         pass
     elif model_name=='vit':
         pass
@@ -132,14 +124,9 @@ def get_model(config, model_name=None, **kwargs):
                         rate=config.DROPOUT_RATE)
     elif model_name=='lab':
         return LAB_model(config)
-    elif model_name=='lab_crop':
-        return CropClassifier(config)
     elif model_name=='dense':
         return DenseNet(config)
-    elif model_name=='drj':
-        return DrJeonko(config)
     elif model_name=='vit':
-        # return ViT_tuned(config)
         return MyViT(config)
     elif model_name=='imseq':
         return ImToSeqTransformer(config)
@@ -149,10 +136,10 @@ def get_scheduler(optimizer, sch_name='none', lr=0):
         return None
     elif sch_name == 'reduce':
         return torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer=optimizer, factor=0.5,
-                                                           patience=3, mode='max')
+                                                           patience=3, mode='min')
     elif sch_name == 'cosine':
         return CosineAnnealingWarmUpRestarts(optimizer, T_0=15, T_mult=2,
-                                             eta_max=lr, T_up=3, gamma=0.5)
+                                             eta_max=lr, T_up=3, gamma=0.8)
 
 def scheduler_step(scheduler, sch_name='none', epoch=None, value=None):
     if sch_name == 'none':
@@ -222,7 +209,6 @@ def main(args):
                                                     num_workers=config.TRAIN.NUM_WORKER, shuffle=True)
         val_dataloader = DataLoader(val_dataset, batch_size=TRAIN.BATCH_SIZE, 
                                                     num_workers=config.TRAIN.NUM_WORKER, shuffle=False)
-    
     ##################            Define metrics          #######################
     
     criterion, metric_function = get_metrics(args.model_name, smoothing=args.smoothing, gamma=args.gamma)
@@ -336,7 +322,7 @@ def main(args):
             val_batch = batch
         
         scheduler_step(scheduler, args.scheduler, 
-                       value = total_val_acc/(val_batch+1),
+                       value = total_val_loss/(val_batch+1), # total_val_acc/(val_batch+1),
                        epoch = epoch)
         
         if len(loss_plot)==epoch:
@@ -360,18 +346,16 @@ def main(args):
             dp.append(directory)
         
         
-        if total_val_acc/(val_batch+1) == max(val_metric_plot):
-            torch.save(model, f'{TRAIN.SAVE_PATH}/model_best_f1.pt')
+        # if total_val_acc/(val_batch+1) == max(val_metric_plot):
+        #     torch.save(model, f'{TRAIN.SAVE_PATH}/model_best_f1.pt')
+        if total_val_loss/(val_batch+1) == min(val_loss_plot):
+            torch.save(model, f'{TRAIN.SAVE_PATH}/model_best.pt')
             
             # Visualize Result
             if total_val_acc/(val_batch+1) > 0.8:
                 visualize_score(TRAIN.CLASS_N, acc_per_class, total_per_class, 'TRAIN ACCURACY SCORE')
                 if val_batch:
                     visualize_score(TRAIN.CLASS_N, val_acc_per_class, val_total_per_class, 'VALID ACCURACY SCORE')
-        
-        
-        if total_val_loss.item()/(val_batch+1) == min(val_loss_plot):
-            torch.save(model, f'{TRAIN.SAVE_PATH}/model_min_loss.pt')
         
         if ((epoch+1) % config.TRAIN.SAVE_PERIOD == 0) or (epoch+1 == TRAIN.EPOCHS):
             save_epoch(TRAIN, epoch, model, optimizer, scheduler, 

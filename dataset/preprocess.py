@@ -6,6 +6,8 @@ import cv2, pickle, json
 import torch
 from torchvision.transforms import transforms
 
+from dataset.csv_process import reduce_number
+
 # area_dict = {'1':'열매','2':'꽃','3':'잎','4':'가지','5':'줄기','6':'뿌리','7':'해충'}
 # grow_dict = {'11':'유묘기', '12':'생장기', '13':'착화/과실기', 
 #              '21':'발아기', '22':'개화기', '23':'신초생장기',
@@ -120,8 +122,8 @@ class Processor():
         img = transforms.Normalize(img.mean(), img.std())(img)
         return img
 
-    def json_processing(self, labels, **kwargs):
-        return labels
+    def json_processing(self, json_file, **kwargs):
+        return np.array([[0]])
         
     def csv_processing(self, df, **kwargs):
         return np.array([[0]])
@@ -293,7 +295,7 @@ class Dense_Processor(Base_Processor):
 class ViT_Processor(Base_Processor):
     def __init__(self, config):
         super().__init__(config)
-        
+        self.USE_SPOT = config.USE_SPOT
         self.img_transforms = transforms.Compose([
             transforms.RandomHorizontalFlip(),
             transforms.ColorJitter(brightness=0.3,
@@ -302,6 +304,35 @@ class ViT_Processor(Base_Processor):
             transforms.RandomAffine(180, shear=10) 
                                     # interpolation=transforms.InterpolationMode.BILINEAR)
         ])
+        self.color_scale = lambda x: x
+        self.csv_transforms = lambda x : self.temporal_drop(x, drop_rate=config.CSV_DROP_RATE)
+        
+    def replace_by_mean(self, arr, replace_rate=0.3):
+        cols = [
+            '내부 온도 평균', '내부 온도 최고', '내부 온도 최저',
+            '내부 습도 평균', '내부 습도 최고', '내부 습도 최저',
+            '내부 이슬점 평균', '내부 이슬점 최고', '내부 이슬점 최저', 
+            '내부 CO2 평균', '내부 CO2 최고',
+            '내부 CO2 최저', '외부 누적일사 평균',
+            ]
+        col_dic = {idx:key for idx, key in enumerate(cols)}
+        
+        stats = pd.read_csv('dataset/csv_statistics.csv', index_col=0)
+        _stats = reduce_number(stats['mean'])
+        _stats.name = 'mean'
+        stats = pd.concat([stats['mean'], _stats]).to_frame()
+        
+        mask = np.where(np.random.rand(arr.shape[0]) < replace_rate)
+        col_mask = [col_dic[idx] for idx in mask[0]]
+        arr[mask] = stats.loc[col_mask, 'mean'].to_numpy().reshape(-1,1)
+        
+        return arr
+        
+    def temporal_drop(self, arr, drop_rate=0.3):
+        if drop_rate:
+            if np.random.rand() < drop_rate:    
+                arr[:,np.random.randint(1,self.config.MAX_LEN):] = 0
+        return arr
         
     def csv_processing(self, df, **kwargs):
         feat = df.iloc[:,1:].to_numpy()
@@ -309,17 +340,90 @@ class ViT_Processor(Base_Processor):
         # Pad
         outputs = np.zeros((feat.shape[0],self.config.MAX_LEN))
         outputs[:,:feat.shape[1]] = feat[:,:self.config.MAX_LEN]
+        # Augment
+        outputs = self.csv_transforms(outputs)
         return outputs
     
-    def img_processing(self, img, Train=True, **kwargs):
+    def img_processing(self, img, Json=-1, Train=True, **kwargs):
+        if self.USE_SPOT:
+            img = np.concatenate([img, Json], axis=-1)
         img = transforms.ToTensor()(img)
         img = transforms.CenterCrop((512,736))(img)
         img = transforms.Resize((256,368))(img)
+        img = self.color_scale(img)
         if Train:
-            img = self.img_transforms(img)
+            img[:3] = self.img_transforms(img[:3]) # Only for color image (not alpha channel)
         img = transforms.Normalize(img.mean(), img.std())(img)
         return img
+    
+    def json_processing(self, json_file, image_size=None, **kwargs):
+        spot_channel = np.zeros((*image_size[:2],1))
+        for spot in json_file['annotations']['part']:
+            x, y, w, h = list(map(int, [spot['x'], spot['y'], spot['w'], spot['h']]))
+            spot_channel[y:y+h, x:x+w] = 255.
+        return spot_channel
         
+class LAB_Processor(ViT_Processor):
+    def __init__(self, config):
+        super().__init__(config)
+        self.color_scale = self.rgb2lab
+        
+    def rgb2lab(self, image):
+        image = image.permute(1,2,0)
+        image[:,:,:3] = self.xyz2lab(self.rgb2xyz(image[:,:,:3].clone()))
+        return image.permute(2,0,1)
+    
+    def rgb2xyz(self, img):
+        # https://www.easyrgb.com/en/math.php
+        # input is numpy (B, W, H, C)
+        # sR, sG and sB (Standard RGB) input range = 0 ÷ 255
+        # X, Y and Z output refer to a D65/2° standard illuminant.
+        
+        mask = img > 0.04045
+        img[mask] = np.power((img[mask] + 0.055) / 1.055, 2.4)
+        img[~mask] /= 12.92
+        
+        img *= 100
+        
+        xyz_conv = np.array([[0.4124, 0.3576, 0.1805],
+                            [0.2126, 0.7152, 0.0722],
+                            [0.0193, 0.1192, 0.9505]])
+        
+        return img @ xyz_conv.T
+
+    def xyz2lab(self, img):
+        # https://www.easyrgb.com/en/math.php
+        # input is tensor (B, C, W, H)
+        # Reference-X, Y and Z refer to specific illuminants and observers.
+        # Common reference values are available below in this same page.
+        refX, refY, refZ = 0.95047, 1., 1.08883   # This was: `lab_ref_white` D65 / 2
+        
+        img[:,:,0] /= refX
+        img[:,:,1] /= refY
+        img[:,:,2] /= refZ
+
+        mask = img > 0.008856
+        
+        img[mask] = np.power(img[mask], 1/3)
+        img[~mask] = 7.787 * img[~mask] + 16/116
+
+        lab_conv = np.array([[0,    116,    0],
+                            [500, -500,    0],
+                            [0,    200, -200]])
+
+        img = img @ lab_conv.T + np.array([-16, 0, 0])
+        
+        # import matplotlib.pyplot as plt
+        # plt.imshow(img[0,:,:,0], cmap='gray')
+        # plt.show()
+        # plt.imshow(img[0,:,:,1], cmap='gray')
+        # plt.show()
+        # plt.imshow(img[0,:,:,2], cmap='gray')
+        # plt.show()
+        
+        return img
+    
+    
 class Seq_Processor(Base_Processor):
     def __init__(self, config):
         super().__init__(config)
