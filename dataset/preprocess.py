@@ -303,7 +303,7 @@ class ViT_Processor(Base_Processor):
                                    saturation=0.3),
             transforms.RandomAffine(180, shear=10) 
                                     # interpolation=transforms.InterpolationMode.BILINEAR)
-        ])
+        ]) if config.USE_AUG else transforms.Compose([])
         self.color_scale = lambda x: x
         self.csv_transforms = lambda x : self.temporal_drop(x, drop_rate=config.CSV_DROP_RATE)
         

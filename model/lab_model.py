@@ -10,6 +10,8 @@ from model.csv_encoder import *
 
 class LAB_model(MyViT):
     def __init__(self, config):
+        config.IMAGE_HEIGHT //= 4
+        config.IMAGE_WIDTH  //= 4
         super().__init__(config)
         self.in_channels = 65 if config.USE_SPOT else 64
         fh, fw = self.vit.fh, self.vit.fw
@@ -18,14 +20,14 @@ class LAB_model(MyViT):
         
     def forward(self, img, seq, *args, **kwargs):
         
-        LAB = self.lab_model(img[:,:3].copy())
+        LAB = self.lab_model(img[:,:3].detach())
 
         if self.in_channels==4:
             outputs = torch.cat((LAB, img[:,3]), dim=1) #(BATCH_SIZE, 64+1, 128, 184)
         else:
             outputs = LAB
             
-        outputs = super.forward(outputs, seq, *args, **kwargs)
+        outputs = super().forward(outputs, seq, *args, **kwargs)
         
         return outputs
 

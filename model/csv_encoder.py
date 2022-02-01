@@ -5,10 +5,6 @@ from torch import nn
 from torch.nn import functional as F
 from torch.utils import model_zoo
 
-
-
-
-
 class ResNet(nn.Module):
     '''
     inputs : (B x N x 295)
@@ -21,9 +17,9 @@ class ResNet(nn.Module):
             nn.BatchNorm1d(64),
             nn.ReLU(),
         )
-        self.conv2 = get_residual_layer(2, 64, 128, 3)
-        self.conv3 = get_residual_layer(2, 128, 256, 3)
-        self.conv4 = get_residual_layer(2, 256, 512, 3)
+        self.conv2 = get_residual_layer(config.RESNET_DEPTH, 64, 128, 3)
+        self.conv3 = get_residual_layer(config.RESNET_DEPTH, 128, 256, 3)
+        self.conv4 = get_residual_layer(config.RESNET_DEPTH, 256, 512, 3)
         self.avg_pool = nn.AdaptiveAvgPool1d(1)
     def forward(self, csv_features, *args, **kwargs):
         outputs = self.conv1(csv_features)

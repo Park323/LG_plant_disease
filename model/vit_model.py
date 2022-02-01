@@ -160,7 +160,8 @@ class MyViT(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.csv_on = config.USE_CSV
-        self.vit = ViT(config, add_csv=self.csv_on)
+        self.vit = ViT(config, add_csv=self.csv_on,
+                       image_size = (config['IMAGE_HEIGHT'], config['IMAGE_WIDTH']))
         self.in_channels = 4 if config.USE_SPOT else 3
         fh, fw = self.vit.fh, self.vit.fw
         self.vit.patch_embedding = nn.Conv2d(self.in_channels, config.D_MODEL, 
@@ -248,11 +249,8 @@ class ViT(nn.Module):
             check_msg = 'must specify name of pretrained model'
             assert not pretrained, check_msg
             assert not resize_positional_embedding, check_msg
-            # if num_classes is None:
-            #     num_classes = 1000
-            # if image_size is None:
-            #     image_size = 384
-            image_size = (CONFIG['IMAGE_HEIGHT'], CONFIG['IMAGE_WIDTH'])
+            if image_size is None:
+                image_size = (CONFIG['IMAGE_HEIGHT'], CONFIG['IMAGE_WIDTH'])
             num_classes = CONFIG['CLASS_N']
             patches = CONFIG['PATCHES']
             dim = CONFIG['D_MODEL']

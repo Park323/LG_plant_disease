@@ -6,22 +6,21 @@ TRAIN :
   EMBEDDING_DIM : 512
   DROPOUT_RATE  : 0.1
   EPOCHS        : 30
-  VISION_PRETRAIN : True
-  PRE_PATH      : data/B_16.pth
   SAVE_PATH     : output/test0
 
   ### LAB ###
-  
+
 
   ### CSV ###
   USE_CSV       : True
   MAX_LEN       : 294
   NUM_FEATURES  : 13
+  RESNET_DEPTH  : 2
   CSV_DROP_RATE : 0.3
 
   ### IMAGE ###
-  USE_SPOT      : True
-  IMAGE_CHANNEL : 4
+  USE_SPOT    : True
+  USE_AUG     : True
   IMAGE_SIZE  : 256
   IMAGE_WIDTH : 368
   IMAGE_HEIGHT: 256
