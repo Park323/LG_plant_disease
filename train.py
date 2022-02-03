@@ -282,7 +282,7 @@ def main(args):
         acc_per_class = correct_per_class / total_per_class
         
         if args.for_submission:
-            total_val_loss = 0
+            total_val_loss = torch.tensor([0])
             total_val_acc = 0
             val_batch = 0
         else:
