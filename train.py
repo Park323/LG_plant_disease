@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+import math
 import os, argparse
 from omegaconf import OmegaConf
 
@@ -39,6 +40,10 @@ def train_step(
     with torch.cuda.amp.autocast():
         output = model(img, csv_feature, labels=label)
         loss = criterion(output, label, **kwargs)
+        
+    if math.isnan(loss):
+        raise f'Loss has NaN value with output\n{output}'
+    
     loss.backward()
     optimizer.step()
     if 'decode' in dir(model):
@@ -66,25 +71,6 @@ def valid_step(
         output = model.decode(img, csv_feature)
     score, correct, total = metric_function(label, output, preprocess=preprocess, num_class=num_class)
     return loss, score, correct, total
-
-def predict(config, model, dataset, training=False):
-    model.eval()
-    tqdm_dataset = tqdm(enumerate(dataset))
-    results = []
-    answer = []
-    for batch, batch_item in tqdm_dataset:
-        img = batch_item['img'].to(DEVICE)
-        seq = batch_item['csv_feature'].to(DEVICE)
-        with torch.no_grad():
-            if 'decode' in dir(model):
-                output = model.decode(img, seq, train=False)
-            else:
-                output = model(img, seq, train=False)
-        results.extend(output)
-        if training:
-            answer.extend(batch_item['label'])
-    results = torch.stack(results)
-    return results, answer
 
 def get_preprocessor(config, model_name=None, **kwargs):
     if model_name=='base':
@@ -138,8 +124,8 @@ def get_scheduler(optimizer, sch_name='none', lr=0):
         return torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer=optimizer, factor=0.5,
                                                            patience=3, mode='min')
     elif sch_name == 'cosine':
-        return CosineAnnealingWarmUpRestarts(optimizer, T_0=15, T_mult=2,
-                                             eta_max=lr, T_up=3, gamma=0.8)
+        return CosineAnnealingWarmUpRestarts(optimizer, T_0=25, T_mult=1,
+                                             eta_max=lr, T_up=5, gamma=0.8)
 
 def scheduler_step(scheduler, sch_name='none', epoch=None, value=None):
     if sch_name == 'none':
@@ -157,6 +143,28 @@ def save_epoch(config, epoch, model, optimizer, scheduler, hist):
         torch.save(optimizer.state_dict(),
                     f'{config.SAVE_PATH}/optimizer_states.pt')
 
+import unicodedata
+
+def fill_str_with_space(input_s="", max_size=40, fill_char="*", align='right'):
+    """
+    - 길이가 긴 문자는 2칸으로 체크하고, 짧으면 1칸으로 체크함. 
+    - 최대 길이(max_size)는 40이며, input_s의 실제 길이가 이보다 짧으면 
+    남은 문자를 fill_char로 채운다.
+    """
+    l = 0 
+    for c in input_s:
+        if unicodedata.east_asian_width(c) in ['F', 'W']:
+            l+=2
+        else: 
+            l+=1
+    if align=='right':
+        return input_s+fill_char*(max_size-l)
+    elif align=='left':
+        return fill_char*(max_size-l)+input_s
+    elif align=='center':
+        return fill_char*(max_size//2)+input_s+fill_char*(max_size//2)
+    
+
 def visualize_score(num_class, accuracy, total, msg:str):
     print(f'###########################################################################################################################################')
     print(f'########################################################   {msg:^20s}   ###################################################################')
@@ -164,7 +172,7 @@ def visualize_score(num_class, accuracy, total, msg:str):
     for i in range(num_class):
         _start = '#' if i%3==0 else ''
         _end = '||' if i%3!=2 else '#\n'
-        print(f'{_start} {LABEL_KOR[i]:>30s} : {accuracy[i]:0.2f}  {total[i]:5.0f} ', end=_end)
+        print(f"{_start} {fill_str_with_space(LABEL_KOR[i],max_size=30,fill_char=' ',align='right')} : {accuracy[i]:0.2f}  {total[i]:5.0f} ", end=_end)
     print()
     print(f'############################################################################################################################################')      
     
@@ -173,13 +181,11 @@ def main(args):
     mconfig = OmegaConf.load(f'config/{args.model_name}_config.yaml')
     
     TRAIN = mconfig.TRAIN
-    TEST  = config.TEST
     DATA  = config.DATA
     
     IMAGE_PATH = DATA.DATA_ROOT + '/' + DATA.IMAGE_PATH
     TRAIN_PATH = DATA.DATA_ROOT + '/' + DATA.TRAIN_PATH
     VALID_PATH = DATA.DATA_ROOT + '/' + DATA.VALID_PATH
-    TEST_PATH  = DATA.DATA_ROOT + '/' + DATA.TEST_PATH
     
     ##########################      DataLoader 정의     #########################
     print('Data Loading...')
@@ -197,8 +203,8 @@ def main(args):
         with open(VALID_PATH, 'r') as f:
             train_paths = [*train_paths, *f.read().split('\n')]
         train_dataset = CustomDataset(train_paths, pre=preprocessor)
-        train_dataloader = DataLoader(train_dataset, batch_size=TRAIN.BATCH_SIZE, 
-                                                    num_workers=config.TRAIN.NUM_WORKER, shuffle=True)
+        train_dataloader = DataLoader(train_dataset, batch_size=TRAIN.BATCH_SIZE,
+                                      num_workers=config.TRAIN.NUM_WORKER, shuffle=True)
     else:
         with open(TRAIN_PATH, 'r') as f:
             train_dataset = CustomDataset(f.read().split('\n'), pre=preprocessor)
@@ -206,30 +212,12 @@ def main(args):
             val_dataset = CustomDataset(f.read().split('\n'), pre=preprocessor)
             
         train_dataloader = DataLoader(train_dataset, batch_size=TRAIN.BATCH_SIZE, 
-                                                    num_workers=config.TRAIN.NUM_WORKER, shuffle=True)
+                                      num_workers=config.TRAIN.NUM_WORKER, shuffle=True)
         val_dataloader = DataLoader(val_dataset, batch_size=TRAIN.BATCH_SIZE, 
-                                                    num_workers=config.TRAIN.NUM_WORKER, shuffle=False)
+                                    num_workers=config.TRAIN.NUM_WORKER, shuffle=False)
     ##################            Define metrics          #######################
     
     criterion, metric_function = get_metrics(args.model_name, smoothing=args.smoothing, gamma=args.gamma)
-    
-    ##################              Inference             #######################
-    if args.inference:
-        assert args.model_path != 'none', 'Model Path should be passed by argument.\nExample) train.py -i -ip output/sample_model.pt'
-        print('Inference Start...')
-        with open(TEST_PATH, 'r') as f:
-            test_dataset = CustomDataset(f.read().split('\n'), pre=preprocessor, mode='test')
-        test_dataloader = DataLoader(test_dataset, batch_size=TEST.BATCH_SIZE, num_workers=TEST.NUM_WORKER, shuffle=False)
-        
-        model = torch.load(args.model_path)
-        
-        preds, answer = predict(TEST, model, test_dataloader)
-        
-        submission = pd.read_csv(f'{TEST.SAMPLE_PATH}')
-        submission['label'] = metric_function(None, preds, inference=True, preprocess=preprocessor)
-        submission.to_csv(f'{TRAIN.SAVE_PATH}/submission.csv', index=False)
-        
-        return None
     
     ################  Model / Optimizer / Scheduler 정의  ################
     print('Model Loading...')
@@ -381,7 +369,6 @@ if __name__=='__main__':
                         type=float, default=0)
     parser.add_argument('-s','--for_submission', action='store_true')
     
-    parser.add_argument('-i','--inference', action='store_true')
     parser.add_argument('-ip','--model_path', default='none')
     
     args = parser.parse_args()

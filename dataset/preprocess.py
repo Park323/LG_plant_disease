@@ -358,9 +358,12 @@ class ViT_Processor(Base_Processor):
     
     def json_processing(self, json_file, image_size=None, **kwargs):
         spot_channel = np.zeros((*image_size[:2],1))
-        for spot in json_file['annotations']['part']:
-            x, y, w, h = list(map(int, [spot['x'], spot['y'], spot['w'], spot['h']]))
-            spot_channel[y:y+h, x:x+w] = 255.
+        spot = json_file['annotations']['bbox'][0]
+        x, y, w, h = list(map(int, [spot['x'], spot['y'], spot['w'], spot['h']]))
+        spot_channel[y:y+h, x:x+w] = 255.
+        # for spot in json_file['annotations']['part']:
+        #     x, y, w, h = list(map(int, [spot['x'], spot['y'], spot['w'], spot['h']]))
+        #     spot_channel[y:y+h, x:x+w] = 255.
         return spot_channel
         
 class LAB_Processor(ViT_Processor):

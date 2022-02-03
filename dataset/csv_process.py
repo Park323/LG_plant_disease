@@ -29,7 +29,7 @@ def reduce_number(x):
     '''
     내부 온습도 1/2/3은 평균을 사용한다.
     '''
-    result = pd.Series(0, temper_cols)
+    result = pd.Series(0., temper_cols)
     for env in ['온도', '습도']:
         for measure in ['평균','최고','최저']:
             col_list = [f'내부 {env} {i} {measure}' for i in range(1,3+1)]

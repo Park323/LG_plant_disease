@@ -19,7 +19,7 @@ class ResNet(nn.Module):
         )
         self.conv2 = get_residual_layer(config.RESNET_DEPTH, 64, 128, 3)
         self.conv3 = get_residual_layer(config.RESNET_DEPTH, 128, 256, 3)
-        self.conv4 = get_residual_layer(config.RESNET_DEPTH, 256, 512, 3)
+        self.conv4 = get_residual_layer(config.RESNET_DEPTH, 256, config.D_MODEL, 3)
         self.avg_pool = nn.AdaptiveAvgPool1d(1)
     def forward(self, csv_features, *args, **kwargs):
         outputs = self.conv1(csv_features)
