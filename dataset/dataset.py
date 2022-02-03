@@ -50,6 +50,7 @@ class CustomDataset(Dataset):
             return {
                 'img' : torch.tensor(img, dtype=torch.float32),
                 'csv_feature' : torch.tensor(csv_feature, dtype=torch.float32),
+                'json_path' : json_path,
                 'label' : self.preprocess.label_encoder(label, dic=json_file)
             }
         else:

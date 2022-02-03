@@ -1,6 +1,7 @@
 import os.path
 import random
 
+import cv2
 import numpy as np
 import torchvision.transforms as transforms
 from PIL import Image
@@ -112,15 +113,21 @@ class UnalignedMaskedDataset(BaseDataset):
         A_img = Image.open(A_path).convert("RGB")
         B_img = Image.open(B_path).convert("RGB")
         # load mask data
-        A_mask_path = (
-            "/".join(A_path.split("/")[:-1]) + "_mask/" + A_path.split("/")[-1]
-        )
-        B_mask_path = (
-            "/".join(B_path.split("/")[:-1]) + "_mask/" + B_path.split("/")[-1]
-        )
+        # A_mask_path = (
+        #     "/".join(A_path.split("/")[:-1]) + "_mask/" + A_path.split("/")[-1]
+        # )
+        # B_mask_path = (
+        #     "/".join(B_path.split("/")[:-1]) + "_mask/" + B_path.split("/")[-1]
+        # )
 
-        A_mask_img = Image.open(A_mask_path).convert("RGB")
-        B_mask_img = Image.open(B_mask_path).convert("RGB")
+        # A_mask_img = Image.open(A_mask_path).convert("RGB")
+        # B_mask_img = Image.open(B_mask_path).convert("RGB")
+
+        A_mask_path = A_path.replace('.jpg','.json')
+        B_mask_path = B_path.replace('.jpg','.json')
+
+        A_mask_img = Image.fromarray(get_mask(A_img, A_mask_path))
+        B_mask_img = Image.fromarray(get_mask(B_img, B_mask_path))
 
         # apply image transformation
         A, A_mask = self.transform_A(A_img, A_mask_img)
@@ -150,3 +157,13 @@ class UnalignedMaskedDataset(BaseDataset):
         we take a maximum of
         """
         return max(self.A_size, self.B_size)
+
+def get_mask(img, json_path):
+    import json
+    spot_channel = np.zeros_like(img)
+    with open(json_path, 'r') as f:
+        json_file = json.load(f)
+    spot = json_file['annotations']['bbox'][0]
+    x, y, w, h = list(map(int, [spot['x'], spot['y'], spot['w'], spot['h']]))
+    spot_channel[y:y+h, x:x+w, :] = 1.
+    return spot_channel

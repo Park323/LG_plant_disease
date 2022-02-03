@@ -1,6 +1,7 @@
 import argparse, os, shutil
 import json
 from glob import glob
+from tqdm import tqdm
 
 '''
 Example:
@@ -13,15 +14,16 @@ def main(args):
         os.makedirs(f'{save_path}/trainA')
     if not os.path.exists(f'{save_path}/trainB'):
         os.makedirs(f'{save_path}/trainB')
+    print('json loading...')
     json_list = glob(f'{args.data_folder}/*/*.json')
-    for js in json_list:
+    print(f'{len(json_list)} jsons loaded.')
+    for js in tqdm(json_list):
         with open(js, 'r') as f:
             annots = json.load(f)
         crop = annots['annotations']['crop']
         disease = annots['annotations']['disease']
         risk = annots['annotations']['risk']
         label = f'{crop}_{disease}_{risk}'
-        print(label)
         if label == args.labelA:
             shutil.copy(f"{js.replace('.json','.jpg')}", f'{save_path}/trainA')
         if label == args.labelB:
