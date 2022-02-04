@@ -313,6 +313,8 @@ def main(args):
                        value = total_val_loss/(val_batch+1), # total_val_acc/(val_batch+1),
                        epoch = epoch)
         
+        convergence = scheduler.get_lr()[0]==1e-8
+        
         if len(loss_plot)==epoch:
             loss_plot.append(total_loss.item()/(train_batch+1))
             metric_plot.append(total_acc/(train_batch+1))
@@ -345,7 +347,7 @@ def main(args):
                 if val_batch:
                     visualize_score(TRAIN.CLASS_N, val_acc_per_class, val_total_per_class, 'VALID ACCURACY SCORE')
         
-        if ((epoch+1) % config.TRAIN.SAVE_PERIOD == 0) or (epoch+1 == TRAIN.EPOCHS):
+        if ((epoch+1) % config.TRAIN.SAVE_PERIOD == 0) or (epoch+1 == TRAIN.EPOCHS) or convergence:
             save_epoch(TRAIN, epoch, model, optimizer, scheduler, 
                        {'train_loss':loss_plot, 'val_loss':val_loss_plot,
                         'train_f1':metric_plot, 'val_f1':val_metric_plot}
