@@ -56,7 +56,7 @@ def main(args):
     print('Data Loading...')
     preprocessor = get_preprocessor(TRAIN, args.model_name)
     with open(TEST_PATH, 'r') as f:
-        test_dataset = CustomDataset(f.read().split('\n'), pre=preprocessor, mode='test')
+        test_dataset = CustomDataset(f.read().split('\n')[args.csv_start:args.csv_end], pre=preprocessor, mode='test')
     test_dataloader = DataLoader(test_dataset, batch_size=TEST.BATCH_SIZE, num_workers=TEST.NUM_WORKER, shuffle=False)
     
     ##################            Define metrics          #######################
@@ -73,7 +73,7 @@ def main(args):
     
     submission = pd.read_csv(f'{TEST.SAMPLE_PATH}')
     submission['label'] = metric_function(None, preds, inference=True, preprocess=preprocessor)
-    submission.to_csv(f'{TRAIN.SAVE_PATH}/submission.csv', index=False)
+    submission.to_csv(f'{TRAIN.SAVE_PATH}/submission{args.csv_start}_{args.csv_end}.csv', index=False)
     
     return None
             
@@ -85,6 +85,8 @@ if __name__=='__main__':
     parser.add_argument('-m', '--model_name',
                         type=str, default='base')
     parser.add_argument('-ip','--model_path', default='none')
+    parser.add_argument('-cs','--csv_start', default=0, type=int)
+    parser.add_argument('-ce','--csv_end', default=51906, type=int)
     
     args = parser.parse_args()
     main(args)
