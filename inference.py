@@ -71,7 +71,7 @@ def main(args):
     
     preds, answer = predict(TEST, model, test_dataloader)
     
-    submission = pd.read_csv(f'{TEST.SAMPLE_PATH}')
+    submission = pd.read_csv(f'{TEST.SAMPLE_PATH}').loc[args.csv_start:args.csv_end-1]
     submission['label'] = metric_function(None, preds, inference=True, preprocess=preprocessor)
     submission.to_csv(f'{TRAIN.SAVE_PATH}/submission{args.csv_start}_{args.csv_end}.csv', index=False)
     
