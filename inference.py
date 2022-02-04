@@ -61,7 +61,7 @@ def main(args):
     
     ##################            Define metrics          #######################
     
-    criterion, metric_function = get_metrics(args.model_name, smoothing=args.smoothing, gamma=args.gamma)
+    criterion, metric_function = get_metrics(args.model_name)
     
     ##################              Inference             #######################
     assert args.model_path != 'none', 'Model Path should be passed by argument.\nExample) train.py -i -ip output/sample_model.pt'
@@ -82,8 +82,9 @@ if __name__=='__main__':
     # Load Config
     parser = argparse.ArgumentParser()
     
+    parser.add_argument('-m', '--model_name',
+                        type=str, default='base')
     parser.add_argument('-ip','--model_path', default='none')
     
     args = parser.parse_args()
-    
     main(args)
